@@ -2,13 +2,27 @@ import unittest
 from unittest.mock import patch
 
 from app import create_app
+from db import db
+from models import Doctor, Patient
 from services.risk_profile import RiskProfileError
+from werkzeug.security import generate_password_hash
 
 
 class AppRoutesTests(unittest.TestCase):
     def setUp(self):
-        self.app = create_app({"TESTING": True, "WTF_CSRF_ENABLED": False})
+        self.app = create_app({
+            "TESTING": True,
+            "WTF_CSRF_ENABLED": False,
+            "SQLALCHEMY_DATABASE_URI": "sqlite://",
+        })
         self.client = self.app.test_client()
+        with self.app.app_context():
+            db.create_all()
+
+    def tearDown(self):
+        with self.app.app_context():
+            db.session.remove()
+            db.drop_all()
 
     @patch("app.get_full_risk_profile")
     def test_login_and_patient_list_render_without_provider_calls(
@@ -17,19 +31,130 @@ class AppRoutesTests(unittest.TestCase):
         login_response = self.client.get("/")
         list_response = self.client.get("/patients")
 
-        self.assertEqual(login_response.status_code, 302)
-        self.assertEqual(login_response.location, "/patients")
+        self.assertEqual(login_response.status_code, 200)
+        self.assertIn(b"Doctor sign in", login_response.data)
+        self.assertIn(b"site-header", login_response.data)
+        self.assertEqual(self.client.get("/login").status_code, 200)
         self.assertEqual(list_response.status_code, 200)
         self.assertIn(b"Demo Patient", list_response.data)
         self.assertIn(b"Search patients", list_response.data)
         get_full_risk_profile.assert_not_called()
 
-    def test_doctor_login_is_visible_but_not_implemented(self):
-        response = self.client.get("/login")
+    def test_doctor_login_rejects_unknown_names_and_wrong_passwords(self):
+        with self.app.app_context():
+            db.session.add(
+                Doctor(
+                    name="Dr Example",
+                    password_hash=generate_password_hash("correct-password"),
+                )
+            )
+            db.session.add(
+                Doctor(
+                    name="Legacy Doctor",
+                    password_hash="unsupported-method$salt$digest",
+                )
+            )
+            db.session.commit()
 
-        self.assertEqual(response.status_code, 200)
-        self.assertIn(b"Doctor login", response.data)
-        self.assertIn(b"not available yet", response.data)
+        for credentials in (
+            {"doctor_name": "Unknown Doctor", "password": "correct-password"},
+            {"doctor_name": "Dr Example", "password": "wrong-password"},
+            {"doctor_name": "Legacy Doctor", "password": "any-password"},
+        ):
+            response = self.client.post("/login", data=credentials)
+            self.assertEqual(response.status_code, 200)
+            self.assertIn(b"Doctor name or password is incorrect.", response.data)
+
+    def test_valid_doctor_login_redirects_to_patients(self):
+        with self.app.app_context():
+            doctor = Doctor(
+                name="Dr Example",
+                password_hash=(
+                    generate_password_hash(
+                        "correct-password",
+                        method="pbkdf2:sha256",
+                    )
+                    + "\n"
+                ),
+            )
+            db.session.add(doctor)
+            db.session.commit()
+            doctor_id = doctor.id
+
+        response = self.client.post(
+            "/login",
+            data={"doctor_name": "dr example", "password": "correct-password"},
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.location, "/patients")
+        with self.client.session_transaction() as session_state:
+            self.assertEqual(session_state["doctor_id"], doctor_id)
+
+    def test_create_patient_is_persisted_and_visible(self):
+        with self.app.app_context():
+            doctor = Doctor(
+                name="Dr Example",
+                password_hash=generate_password_hash("correct-password"),
+            )
+            db.session.add(doctor)
+            db.session.commit()
+            doctor_id = doctor.id
+        with self.client.session_transaction() as session_state:
+            session_state["doctor_id"] = doctor_id
+
+        response = self.client.post(
+            "/patients",
+            data={
+                "name": "New Patient",
+                "dob": "1990-05-14",
+                "ethnicity": "Other",
+                "nhs_number": "123 456 7890",
+                "conditions": "Asthma, Example condition",
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.location, "/patients")
+        self.assertIn(b"New Patient", self.client.get("/patients").data)
+        with self.app.app_context():
+            patient = Patient.query.filter_by(name="New Patient").one()
+            self.assertEqual(patient.dob.isoformat(), "1990-05-14")
+            self.assertEqual(patient.nhs_number, "1234567890")
+            self.assertEqual(patient.doctor_id, doctor_id)
+            patient_id = patient.id
+        self.assertEqual(self.client.get(f"/patients/{patient_id}").status_code, 200)
+
+    def test_create_patient_rejects_missing_and_malformed_fields(self):
+        with self.app.app_context():
+            doctor = Doctor(
+                name="Dr Example",
+                password_hash=generate_password_hash("correct-password"),
+            )
+            db.session.add(doctor)
+            db.session.commit()
+            doctor_id = doctor.id
+        with self.client.session_transaction() as session_state:
+            session_state["doctor_id"] = doctor_id
+
+        valid_data = {
+            "name": "New Patient",
+            "dob": "1990-05-14",
+            "ethnicity": "Other",
+            "nhs_number": "",
+            "conditions": "Asthma",
+        }
+        invalid_submissions = (
+            {**valid_data, "ethnicity": ""},
+            {**valid_data, "dob": "not-a-date"},
+            {**valid_data, "nhs_number": "12345abcde"},
+        )
+        for form_data in invalid_submissions:
+            response = self.client.post("/patients", data=form_data)
+            self.assertEqual(response.status_code, 400)
+
+        with self.app.app_context():
+            self.assertEqual(Patient.query.count(), 0)
 
     @patch("app.get_full_risk_profile")
     def test_patient_page_does_not_fetch_profiles(self, get_full_risk_profile):

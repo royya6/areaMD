@@ -215,6 +215,19 @@ h3 {
   border-top: 1px solid var(--line);
 }
 
+.create-patient-section {
+  margin-bottom: 30px;
+}
+
+.create-patient-section h2 {
+  margin-bottom: 16px;
+  font-size: 19px;
+}
+
+.create-patient-form {
+  max-width: 480px;
+}
+
 .detail-section h2,
 .history-section h2,
 .report-summary h2 {
@@ -225,6 +238,10 @@ h3 {
 .edit-form {
   display: grid;
   gap: 7px;
+}
+
+.login-form {
+  max-width: 420px;
 }
 
 .edit-form label,

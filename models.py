@@ -10,11 +10,11 @@ class Doctor(db.Model):
 class Patient(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     nhs_number = db.Column(db.String(20), nullable=True)
-    name = db.Column(db.String(120))
-    dob = db.Column(db.Date)
-    ethnicity = db.Column(db.String(80))
-    conditions = db.Column(db.Text)   # comma-separated for MVP
-    doctor_id = db.Column(db.Integer, db.ForeignKey("doctor.id"))
+    name = db.Column(db.String(120), nullable=False)
+    dob = db.Column(db.Date, nullable=False)
+    ethnicity = db.Column(db.String(80), nullable=False)
+    conditions = db.Column(db.Text, nullable=False)
+    doctor_id = db.Column(db.Integer, db.ForeignKey("doctor.id"), nullable=False)
 
 class Address(db.Model):
     id = db.Column(db.Integer, primary_key=True)

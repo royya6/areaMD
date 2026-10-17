@@ -9,7 +9,7 @@ class Doctor(db.Model):
 
 class Patient(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    nhs_number = db.Column(db.String(20))
+    nhs_number = db.Column(db.String(20), nullable=True)
     name = db.Column(db.String(120))
     dob = db.Column(db.Date)
     ethnicity = db.Column(db.String(80))

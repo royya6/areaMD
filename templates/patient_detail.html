@@ -1,0 +1,160 @@
+{% extends "base.html" %}
+
+{% block title %}{{ patient.name }} · AreaMD{% endblock %}
+
+{% block content %}
+<a class="back-link" href="{{ url_for('patients') }}">Back to patients</a>
+<section class="page-heading patient-heading">
+	<h1>{{ patient.name }}</h1>
+	<form method="post" action="{{ url_for('generate_report', patient_id=patient.id) }}" id="report-form">
+		<button class="primary-button" type="submit">Generate report</button>
+	</form>
+</section>
+
+	{% if form_error %}
+	<p class="form-error" role="alert">{{ form_error }}</p>
+	{% endif %}
+
+<div class="patient-detail-grid">
+	<section class="detail-section" aria-labelledby="patient-info-heading">
+		<h2 id="patient-info-heading">Patient details</h2>
+		<form method="post" action="{{ url_for('edit_patient', patient_id=patient.id) }}" class="edit-form">
+			<label for="patient-name">Name</label>
+			<input id="patient-name" name="name" type="text" value="{{ patient.name }}" maxlength="120" required>
+
+			<label for="patient-dob">Date of birth</label>
+			<input id="patient-dob" name="dob" type="date" value="{{ patient.dob }}">
+
+			<label for="patient-conditions">Conditions</label>
+			<textarea id="patient-conditions" name="conditions" rows="2" maxlength="500">{{ patient.conditions | join(", ") }}</textarea>
+
+			<button class="secondary-button" type="submit">Save details</button>
+		</form>
+		<p class="demo-note">Demo changes are temporary and reset when the server restarts.</p>
+	</section>
+
+	<section class="detail-section address-section" aria-labelledby="addresses-heading">
+		<div class="section-heading compact-heading">
+			<h2 id="addresses-heading">Addresses</h2>
+			<span class="muted">{{ patient.addresses | length }} saved</span>
+		</div>
+		<ul class="address-list">
+			{% for address in patient.addresses %}
+			<li>
+				<form method="post" action="{{ url_for('edit_address', patient_id=patient.id, address_id=address.id) }}" class="address-form">
+					<select name="address_type" aria-label="Address type for {{ address.postcode }}">
+						{% for address_type in ["Home", "Work", "Previous home"] %}
+						<option value="{{ address_type }}"{% if address.type == address_type %} selected{% endif %}>{{ address_type }}</option>
+						{% endfor %}
+					</select>
+					<input name="postcode" type="text" value="{{ address.postcode }}" aria-label="Postcode for {{ address.type }}" maxlength="10" required>
+					<button class="icon-button" type="submit" title="Save address" aria-label="Save address">Save</button>
+				</form>
+			</li>
+			{% endfor %}
+		</ul>
+		<details class="add-address">
+			<summary>Add address</summary>
+			<form method="post" action="{{ url_for('add_address', patient_id=patient.id) }}" class="address-form add-address-form">
+				<label class="visually-hidden" for="new-address-type">Address type</label>
+				<select id="new-address-type" name="address_type" required>
+					<option value="">Choose type</option>
+					<option>Home</option>
+					<option>Work</option>
+					<option>Previous home</option>
+				</select>
+				<label class="visually-hidden" for="new-address-postcode">Postcode</label>
+				<input id="new-address-postcode" name="postcode" type="text" placeholder="Postcode" maxlength="10" required>
+				<button class="secondary-button" type="submit">Add</button>
+			</form>
+		</details>
+	</section>
+</div>
+
+<section class="history-section" aria-labelledby="history-heading">
+	<div class="section-heading compact-heading">
+		<h2 id="history-heading">Past reports</h2>
+		<span class="muted">{{ reports | length }}</span>
+	</div>
+	{% if reports %}
+	<ul class="report-history">
+		{% for report in reports %}
+		<li>
+			<a href="{{ url_for('previous_report', patient_id=patient.id, report_id=report.id) }}">
+				<span class="report-date">{{ report.appointment_date }}</span>
+				<span>{{ report.appointment_label }}</span>
+				<span class="history-arrow" aria-hidden="true">›</span>
+			</a>
+		</li>
+		{% endfor %}
+	</ul>
+	{% else %}
+	<p class="muted">No reports for this patient.</p>
+	{% endif %}
+	<p class="demo-note">Example history is temporary demo data, not a saved clinical record.</p>
+</section>
+
+{% if profiles is not none %}
+<section class="report-section" aria-labelledby="report-heading">
+	<div class="section-heading">
+		<h2 id="report-heading">Area context</h2>
+		<p class="report-note">Postcode-level context, not an individual clinical assessment.</p>
+	</div>
+	{% for item in profiles %}
+	<article class="profile-row">
+		<header class="profile-heading">
+			<h3>{{ item.address_type }}</h3>
+			<code>{{ item.profile.postcode }}</code>
+		</header>
+		{% if item.profile.errors %}
+			<p class="status status-warning">Some source data could not be retrieved.</p>
+		{% endif %}
+		{% if item.profile.air_quality is defined and item.profile.air_quality.available %}
+			<p><strong>Nearest LAQN site:</strong> {{ item.profile.air_quality.site_name or "Unnamed site" }}
+				{% if item.profile.air_quality.distance_km is not none %}
+					  &middot; {{ item.profile.air_quality.distance_km }} km
+				{% endif %}
+			</p>
+			<p class="muted">Site location only; pollutant readings are not included.</p>
+		{% else %}
+			<p><strong>Nearest LAQN site:</strong> unavailable</p>
+		{% endif %}
+		{% if item.profile.deprivation is defined and item.profile.deprivation.available %}
+			<p><strong>IMD 2019 decile:</strong> {{ item.profile.deprivation.imd_decile or "Unavailable" }}
+				<span class="muted">(LSOA-level; 1 is most deprived)</span>
+			</p>
+			<p><strong>Living environment decile:</strong> {{ item.profile.deprivation.living_env_decile or "Unavailable" }}</p>
+			<p class="muted">Source: <a href="https://www.gov.uk/government/statistics/english-indices-of-deprivation-2019">English Indices of Deprivation 2019</a>.</p>
+		{% else %}
+			<p><strong>IMD 2019:</strong> unavailable</p>
+		{% endif %}
+		{% if item.profile.planning_flags is defined %}
+			<ul class="flag-list">
+				{% for dataset, listed in item.profile.planning_flags.items() %}
+				<li>
+					<span>{{ dataset | replace("-", " ") | title }}</span>
+					{% if listed is sameas true %}
+						<span class="flag flag-listed">Listed by API</span>
+					{% elif listed is sameas false %}
+						<span class="flag">No entry returned</span>
+					{% else %}
+						<span class="flag flag-unknown">Unknown</span>
+					{% endif %}
+				</li>
+				{% endfor %}
+			</ul>
+			<p class="muted">Planning data coverage varies; no entry does not confirm absence.</p>
+		{% endif %}
+	</article>
+	{% endfor %}
+</section>
+{% endif %}
+
+<script>
+	document.getElementById("report-form").addEventListener("submit", function () {
+		const button = this.querySelector("button[type=submit]");
+		button.disabled = true;
+		button.textContent = "Generating...";
+	});
+</script>
+{% endblock %}

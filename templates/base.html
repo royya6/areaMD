@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>{% block title %}AreaMD{% endblock %}</title>
+	<link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
+</head>
+<body>
+	<header class="site-header">
+		<a class="wordmark" href="{{ url_for('patients') }}">AreaMD</a>
+		<a class="account-button" href="{{ url_for('login') }}">Doctor login</a>
+	</header>
+	<main class="content">
+		{% block content %}{% endblock %}
+	</main>
+</body>
+</html>

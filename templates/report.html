@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+
+{% block title %}Past report · {{ patient.name }}{% endblock %}
+
+{% block content %}
+<a class="back-link" href="{{ url_for('patient_detail', patient_id=patient.id) }}">Back to patient</a>
+<section class="page-heading">
+	<h1>{{ report.appointment_label }}</h1>
+	<p class="muted">{{ report.appointment_date }} · {{ patient.name }}</p>
+</section>
+<section class="report-summary" aria-labelledby="summary-heading">
+	<h2 id="summary-heading">Summary</h2>
+	<p>{{ report.summary }}</p>
+	<p class="demo-note">Temporary example report; this is not a saved clinical record.</p>
+</section>
+{% endblock %}

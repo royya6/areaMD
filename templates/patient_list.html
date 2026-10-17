@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+
+{% block title %}Patients · AreaMD{% endblock %}
+
+{% block content %}
+<section class="page-heading">
+	<h1>Patient list</h1>
+</section>
+
+<div class="patient-tools">
+	<label for="patient-search">Search patients</label>
+	<input id="patient-search" name="q" type="search" placeholder="Name, condition or postcode" autocomplete="off">
+</div>
+
+<ul class="patient-list" id="patient-list">
+	{% for patient in patients %}
+	<li data-patient-row data-search-text="{{ (patient.name ~ ' ' ~ patient.conditions | join(' ') ~ ' ' ~ patient.addresses | map(attribute='postcode') | join(' ')) | lower }}">
+		<a href="{{ url_for('patient_detail', patient_id=patient.id) }}">
+			<span class="patient-name">{{ patient.name }}</span>
+			<span class="patient-meta">{{ patient.addresses | length }} addresses</span>
+		</a>
+	</li>
+	{% endfor %}
+</ul>
+<p id="patient-search-empty" class="muted empty-state" hidden>No matching patients.</p>
+
+<script>
+	const searchInput = document.getElementById("patient-search");
+	const patientRows = Array.from(document.querySelectorAll("[data-patient-row]"));
+	const emptyState = document.getElementById("patient-search-empty");
+
+	searchInput.addEventListener("input", function () {
+		const query = this.value.trim().toLowerCase();
+		let visibleCount = 0;
+
+		for (const row of patientRows) {
+			const matches = row.dataset.searchText.includes(query);
+			row.hidden = !matches;
+			visibleCount += Number(matches);
+		}
+
+		emptyState.hidden = visibleCount > 0;
+	});
+</script>
+{% endblock %}

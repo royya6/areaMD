@@ -11,6 +11,7 @@ EARTH_RADIUS_KM = 6371
 REQUEST_TIMEOUT_SECONDS = 8
 MEASUREMENT_TIMEOUT_SECONDS = 12
 MEASUREMENT_LOOKBACK_OFFSETS = (0, 30, 90, 180, 365)
+HISTORICAL_LOOKBACK_DAYS = 30
 
 
 class LAQNResponseError(ValueError):
@@ -166,6 +167,60 @@ def _latest_measurements(site_code: str) -> dict[str, object]:
 	return {"measurements": {}, "measurement_window": None}
 
 
+def _historical_summary(site_code: str) -> dict[str, object]:
+	"""Summarise numeric readings from the previous 30 days."""
+	today = date.today()
+	start = today - timedelta(days=HISTORICAL_LOOKBACK_DAYS)
+	end = today - timedelta(days=1)
+	url = (
+		"https://api.erg.ic.ac.uk/AirQuality/Data/Site/"
+		f"SiteCode={site_code}/StartDate={start}/EndDate={end}/Json"
+	)
+	response = requests.get(url, timeout=MEASUREMENT_TIMEOUT_SECONDS)
+	response.raise_for_status()
+	try:
+		data = response.json()["AirQualityData"]["Data"]
+		if isinstance(data, dict):
+			data = [data]
+		if not isinstance(data, list) or any(
+			not isinstance(item, dict) for item in data
+		):
+			raise TypeError
+	except (KeyError, TypeError, ValueError) as error:
+		raise LAQNResponseError(
+			"LAQN historical measurements API returned an unexpected response"
+		) from error
+
+	values_by_species = {}
+	for item in data:
+		species = item.get("@SpeciesCode")
+		try:
+			value = float(item.get("@Value"))
+		except (TypeError, ValueError):
+			continue
+		if (
+			not isinstance(species, str)
+			or not math.isfinite(value)
+			or value < 0
+		):
+			continue
+		values_by_species.setdefault(species, []).append(value)
+
+	return {
+		"from": str(start),
+		"to": str(end),
+		"by_species": {
+			species: {
+				"maximum": round(max(values), 2),
+				"average": round(sum(values) / len(values), 2),
+				"observations": len(values),
+			}
+			for species, values in values_by_species.items()
+			if values
+		},
+	}
+
+
 def get_air_quality(latitude: float, longitude: float) -> dict[str, object]:
 	"""Return nearest open-site metadata and its latest numeric readings."""
 	site = nearest_site(latitude, longitude)
@@ -177,14 +232,18 @@ def get_air_quality(latitude: float, longitude: float) -> dict[str, object]:
 		return result
 	try:
 		result.update(_latest_measurements(site_code))
+		result["historical_summary"] = _historical_summary(site_code)
 	except (requests.RequestException, LAQNResponseError):
 		return {
 			**result,
 			"measurements": {},
 			"measurement_window": None,
+			"historical_summary": None,
 			"measurements_available": False,
 		}
-	result["measurements_available"] = bool(result["measurements"])
+	result["measurements_available"] = bool(
+		result["measurements"] or result["historical_summary"].get("by_species")
+	)
 	return result
 
 

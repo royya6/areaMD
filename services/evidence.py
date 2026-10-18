@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-BASE_SEARCH_TERMS = ("fire", "smoke", "pollution", "water")
+BASE_SEARCH_TERMS = ("dust", "fire", "pollution", "water")
 PLANNING_SOURCE = "Planning Data platform"
 IMD_SOURCE = "English Indices of Deprivation 2019"
 LAQN_SOURCE = "London Air Quality Network"
@@ -53,6 +53,11 @@ def _build_indicators(
     indicators = []
     air_quality = profile.get("air_quality", {})
     readings = air_quality.get("measurements", {}) if isinstance(air_quality, dict) else {}
+    historical = (
+        air_quality.get("historical_summary", {})
+        if isinstance(air_quality, dict)
+        else {}
+    )
     air_levels = []
     if isinstance(readings, dict):
         for species, reading in readings.items():
@@ -67,6 +72,30 @@ def _build_indicators(
                 air_levels.append("high" if value > 100 else "moderate" if value > 50 else "low")
             elif species in {"PM25", "PM2.5"}:
                 air_levels.append("high" if value > 50 else "moderate" if value > 25 else "low")
+    historical_species = (
+        historical.get("by_species", {})
+        if isinstance(historical, dict)
+        else {}
+    )
+    if isinstance(historical_species, dict):
+        for species, reading in historical_species.items():
+            if not isinstance(reading, dict):
+                continue
+            maximum = reading.get("maximum")
+            if not isinstance(maximum, (int, float)):
+                continue
+            if species == "NO2":
+                air_levels.append(
+                    "high" if maximum > 200 else "moderate" if maximum > 40 else "low"
+                )
+            elif species == "PM10":
+                air_levels.append(
+                    "high" if maximum > 100 else "moderate" if maximum > 50 else "low"
+                )
+            elif species in {"PM25", "PM2.5"}:
+                air_levels.append(
+                    "high" if maximum > 50 else "moderate" if maximum > 25 else "low"
+                )
     if air_levels:
         status = "high" if "high" in air_levels else "moderate" if "moderate" in air_levels else "low"
         title = {
@@ -74,6 +103,8 @@ def _build_indicators(
             "moderate": "Moderate air pollution",
             "low": "No elevated air readings",
         }[status]
+        if status in {"high", "moderate"} and historical_species:
+            title = "Recent elevated air pollution"
         indicators.append(
             _indicator(
                 "Air quality",
@@ -200,6 +231,7 @@ def build_environmental_evidence(
                     "borough",
                     "measurements",
                     "measurement_window",
+                    "historical_summary",
                 )
                 if air_quality.get(key) is not None
             }

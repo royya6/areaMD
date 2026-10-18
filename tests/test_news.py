@@ -3,8 +3,10 @@ from unittest.mock import Mock
 
 from services.news import (
     NEWS_SEARCH_URL,
+    NEWS_RSS_URL,
     build_borough_queries,
     fetch_local_articles,
+    fetch_rss_articles,
 )
 
 
@@ -51,6 +53,62 @@ class BuildBoroughQueriesTests(unittest.TestCase):
 
 
 class FetchLocalArticlesTests(unittest.TestCase):
+    def test_rss_normalizes_only_local_topic_matches(self):
+        response = Mock()
+        response.content = b"""<?xml version="1.0"?>
+        <rss><channel>
+          <item>
+            <title>Newham residents report construction dust</title>
+            <link>https://news.example/dust</link>
+            <description>Dust affects homes near Newham.</description>
+            <pubDate>Sat, 18 Oct 2026 09:00:00 GMT</pubDate>
+            <source url="https://news.example">Local News</source>
+          </item>
+          <item>
+            <title>Routine council update</title>
+            <link>https://news.example/routine</link>
+            <description>Newham council published an update.</description>
+          </item>
+        </channel></rss>"""
+        session = Mock()
+        session.get.return_value = response
+
+        result = fetch_rss_articles(
+            "Newham",
+            search_region="London",
+            search_terms=["dust"],
+            session=session,
+        )
+
+        self.assertEqual(result["status"], "ok")
+        self.assertEqual(len(result["articles"]), 1)
+        self.assertEqual(result["articles"][0]["source_type"], "rss")
+        self.assertEqual(result["articles"][0]["publisher"], "Local News")
+        self.assertEqual(session.get.call_args.args[0], NEWS_RSS_URL)
+
+    def test_empty_api_results_fall_back_to_rss(self):
+        api_response = Mock()
+        api_response.json.return_value = {"results": []}
+        rss_response = Mock()
+        rss_response.content = b"""<rss><channel><item>
+        <title>Newham dust incident</title>
+        <link>https://news.example/dust</link>
+        <description>Dust reported in Newham.</description>
+        <source>Local News</source>
+        </item></channel></rss>"""
+        session = Mock()
+        session.get.side_effect = [api_response, rss_response]
+
+        result = fetch_local_articles(
+            "Newham",
+            search_terms=["dust"],
+            session=session,
+        )
+
+        self.assertEqual(result["status"], "ok")
+        self.assertEqual(result["source_type"], "rss")
+        self.assertEqual(result["articles"][0]["query_topic"], "dust")
+
     def test_fetches_serial_topic_queries_and_preserves_date_provenance(self):
         responses = []
         for article_id, title in (("1", "Westminster fire update"), ("2", "Westminster smoke alert")):

@@ -423,17 +423,23 @@ def create_app(test_config=None):
                 continue
             try:
                 profile = get_full_risk_profile(address["postcode"])
-            except RiskProfileError:
+            except Exception:
+                app.logger.exception("Risk profile lookup failed")
                 profile = {
                     "postcode": address["postcode"],
                     "errors": {"postcode": "lookup_failed"},
                 }
             profiles.append({"address_type": address["type"], "profile": profile})
 
-        environmental_report = build_environmental_report(
-            profiles,
-            client=app.config.get("GEMINI_CLIENT"),
-        )
+        try:
+            environmental_report = build_environmental_report(
+                profiles,
+                client=app.config.get("GEMINI_CLIENT"),
+            )
+        except Exception:
+            app.logger.exception("Could not build environmental report")
+            flash("The report could not be generated. Please try again.", "error")
+            return redirect(url_for("patient_detail", patient_id=patient_id))
         reports = app.config["REPORTS"]
         report_id = max((report["id"] for report in reports), default=0) + 1
         generated_at = datetime.now(timezone.utc)

@@ -15,7 +15,7 @@ MAX_REPORT_WORDS = 100
 MAX_OBSERVATIONS = 5
 MAX_LIMITATIONS = 2
 MAX_INDICATOR_FINDINGS = 12
-REQUEST_TIMEOUT_MS = 60000
+REQUEST_TIMEOUT_MS = 20000
 GEMINI_ERROR_MESSAGES = {
 	"api_key_missing": "Gemini is not configured on the app server.",
 	"sdk_missing": "The Gemini SDK is not installed in the app environment.",
@@ -688,8 +688,9 @@ def build_environmental_report(
 					news_session=news_session,
 				)
 			)
-		except GeminiProviderError as error:
-			logger.warning("News article selection unavailable (%s)", error.code)
+		except Exception as error:
+			code = getattr(error, "code", None) or "news_provider_unavailable"
+			logger.warning("News article selection unavailable (%s)", code, exc_info=True)
 			local_context.append(
 				{
 					"local_authority": authority,
@@ -698,7 +699,7 @@ def build_environmental_report(
 					"selected_articles": [],
 					"errors": [],
 					"selection_status": "unavailable",
-					"selection_error_code": error.code,
+					"selection_error_code": code,
 				}
 			)
 

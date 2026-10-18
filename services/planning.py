@@ -9,6 +9,8 @@ PLANNING_DATASETS = (
 	"listed-building",
 	"green-belt",
 	"article-4-direction-area",
+	"brownfield-land",
+	"planning-application",
 )
 REQUEST_TIMEOUT_SECONDS = 6
 MAX_RESULTS = 100

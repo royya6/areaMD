@@ -215,6 +215,79 @@ h3 {
   border-top: 1px solid var(--line);
 }
 
+.indicator-panel {
+  margin: 28px 0;
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fff;
+}
+
+.indicator-address {
+  margin: 20px 0 10px;
+  color: var(--muted);
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+}
+
+.indicator-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.indicator-tile {
+  min-height: 150px;
+  padding: 15px;
+  border-left: 5px solid var(--teal);
+  border-radius: 4px;
+  background: var(--teal-soft);
+}
+
+.indicator-tile.indicator-moderate {
+  border-color: var(--amber);
+  background: var(--amber-soft);
+}
+
+.indicator-tile.indicator-high {
+  border-color: var(--red);
+  background: #f9e9e6;
+}
+
+.indicator-tile.indicator-unavailable {
+  border-color: var(--muted);
+  background: #eef1f1;
+}
+
+.indicator-category,
+.indicator-title,
+.indicator-tile p {
+  margin: 0 0 7px;
+}
+
+.indicator-category,
+.indicator-source {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.indicator-title {
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.indicator-source {
+  display: block;
+  margin-top: 12px;
+}
+
+@media (max-width: 720px) {
+  .indicator-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 .detail-section h2,
 .history-section h2,
 .report-summary h2 {
@@ -370,6 +443,64 @@ h3 {
 
 .report-summary {
   max-width: 720px;
+}
+
+.report-sources {
+  max-width: 820px;
+  margin-top: 22px;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+
+.report-sources summary {
+  padding: 12px 0;
+  color: var(--teal-dark);
+  font-size: 14px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.evidence-address {
+  padding: 12px 0;
+  border-top: 1px solid var(--line);
+}
+
+.evidence-address h3 {
+  margin-bottom: 10px;
+}
+
+.evidence-item {
+  padding: 10px 0;
+  border-top: 1px solid var(--line);
+}
+
+.evidence-item p {
+  margin: 6px 0;
+}
+
+.evidence-facts,
+.evidence-limitations {
+  margin: 8px 0;
+  padding-left: 20px;
+}
+
+.quality-factors {
+  display: grid;
+  grid-template-columns: minmax(110px, 0.3fr) minmax(0, 1fr);
+  gap: 4px 14px;
+  margin: 10px 0;
+  font-size: 13px;
+}
+
+.quality-factors dt {
+  color: var(--muted);
+  font-weight: 650;
+}
+
+.quality-factors dd {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
 }
 
 .visually-hidden {

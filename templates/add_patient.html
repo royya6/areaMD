@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+
+{% block title %}Add patient · AreaMD{% endblock %}
+
+{% block content %}
+<a class="back-link" href="{{ url_for('patients') }}">Back to patients</a>
+
+<section class="page-heading">
+    <h1>Add patient</h1>
+    <p class="muted">Enter the patient's details and address below.</p>
+</section>
+
+<form method="POST" action="{{ url_for('add_patient') }}" class="edit-form patient-form">
+    <label for="name">Full name *</label>
+    <input
+        id="name"
+        name="name"
+        type="text"
+        maxlength="120"
+        required
+        value="{{ request.form.get('name', '') }}"
+    >
+
+    <label for="nhs_number">NHS number</label>
+    <input
+        id="nhs_number"
+        name="nhs_number"
+        type="text"
+        maxlength="20"
+        value="{{ request.form.get('nhs_number', '') }}"
+    >
+
+    <label for="dob">Date of birth *</label>
+    <input
+        id="dob"
+        name="dob"
+        type="date"
+        required
+        value="{{ request.form.get('dob', '') }}"
+    >
+
+    <label for="ethnicity">Ethnicity *</label>
+    <input
+        id="ethnicity"
+        name="ethnicity"
+        type="text"
+        maxlength="80"
+        required
+        value="{{ request.form.get('ethnicity', '') }}"
+    >
+
+    <label for="conditions">Conditions *</label>
+    <textarea
+        id="conditions"
+        name="conditions"
+        rows="4"
+        required
+        placeholder="For example: asthma, hypertension"
+    >{{ request.form.get('conditions', '') }}</textarea>
+    <p class="muted">Separate multiple conditions with commas.</p>
+
+    <h2>Address</h2>
+
+    <label for="address_type">Address type *</label>
+    <select id="address_type" name="address_type" required>
+        <option value="">Select address type</option>
+        <option value="Home" {% if request.form.get('address_type') == 'Home' %}selected{% endif %}>Home</option>
+        <option value="Work" {% if request.form.get('address_type') == 'Work' %}selected{% endif %}>Work</option>
+    </select>
+
+    <label for="postcode">Postcode *</label>
+    <input
+        id="postcode"
+        name="postcode"
+        type="text"
+        maxlength="10"
+        required
+        autocomplete="postal-code"
+        value="{{ request.form.get('postcode', '') }}"
+        placeholder="e.g. SW7 2AZ"
+    >
+
+    <label for="doctor_id">Doctor *</label>
+    <select id="doctor_id" name="doctor_id" required>
+        <option value="">Select a doctor</option>
+        {% for doctor in doctors %}
+        <option
+            value="{{ doctor.id }}"
+            {% if request.form.get('doctor_id', '') | string == doctor.id | string %}selected{% endif %}
+        >{{ doctor.name }}</option>
+        {% endfor %}
+    </select>
+
+    {% if not doctors %}
+    <p class="form-error">
+        No doctors are available. Add a doctor before creating a patient.
+    </p>
+    {% endif %}
+
+    {% if error %}
+    <p class="form-error" role="alert">{{ error }}</p>
+    {% endif %}
+
+    <button
+        type="submit"
+        class="primary-button"
+        {% if not doctors %}disabled{% endif %}
+    >Save patient</button>
+</form>
+{% endblock %}

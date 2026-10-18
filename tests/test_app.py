@@ -336,11 +336,6 @@ class AppRoutesTests(unittest.TestCase):
         response = self.client.post("/patients/1/report", follow_redirects=True)
 
         self.assertEqual(response.status_code, 200)
-<<<<<<< HEAD
-        self.assertIn(b"Area context", response.data)
-        self.assertNotIn(b"Tap-water supply zone", response.data)
-        self.assertEqual(get_full_risk_profile.call_count, 3)
-=======
         self.assertIn(b"An environmental summary", response.data)
         self.assertIn(b"A source lists a local incident", response.data)
         self.assertIn(b"Data limitations:", response.data)
@@ -348,7 +343,6 @@ class AppRoutesTests(unittest.TestCase):
         self.assertEqual(get_full_risk_profile.call_count, 2)
         self.assertEqual(build_environmental_report.call_count, 1)
         self.assertEqual(len(self.app.config["MOCK_REPORTS"]), 2)
->>>>>>> 80879e743150af7eda17b3138d54a6666bdc1bf0
 
     @patch("app.build_environmental_report")
     @patch("app.get_full_risk_profile")

@@ -215,19 +215,6 @@ h3 {
   border-top: 1px solid var(--line);
 }
 
-<<<<<<< HEAD
-.create-patient-section {
-  margin-bottom: 30px;
-}
-
-.create-patient-section h2 {
-  margin-bottom: 16px;
-  font-size: 19px;
-}
-
-.create-patient-form {
-  max-width: 480px;
-=======
 .indicator-panel {
   margin: 28px 0;
   padding: 20px;
@@ -299,7 +286,6 @@ h3 {
   .indicator-grid {
     grid-template-columns: 1fr;
   }
->>>>>>> 80879e743150af7eda17b3138d54a6666bdc1bf0
 }
 
 .detail-section h2,
@@ -312,34 +298,6 @@ h3 {
 .edit-form {
   display: grid;
   gap: 7px;
-}
-
-.login-form {
-  max-width: 420px;
-}
-
-.water-quality-table-wrap {
-  margin: 12px 0;
-  overflow-x: auto;
-}
-
-.water-quality-table {
-  width: 100%;
-  border-collapse: collapse;
-  text-align: left;
-  font-size: 13px;
-}
-
-.water-quality-table th,
-.water-quality-table td {
-  padding: 8px 10px;
-  border-bottom: 1px solid var(--line);
-  white-space: nowrap;
-}
-
-.water-quality-table thead th {
-  color: var(--muted);
-  font-size: 11px;
 }
 
 .edit-form label,
@@ -736,4 +694,50 @@ code {
     grid-column: 2;
     grid-row: 1 / span 2;
   }
+}
+
+
+.patient-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+}
+
+.patient-heading h1 {
+    margin-bottom: 0;
+}
+
+.patient-form {
+    max-width: 560px;
+    gap: 8px;
+}
+
+.patient-form input,
+.patient-form textarea,
+.patient-form select {
+    width: 100%;
+    min-height: 42px;
+    padding: 9px 12px;
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    background: #fff;
+    color: var(--ink);
+    font: inherit;
+}
+
+.patient-form textarea {
+    resize: vertical;
+}
+
+.patient-form .primary-button {
+    justify-self: start;
+    margin-top: 12px;
+}
+
+@media (max-width: 600px) {
+    .patient-heading {
+        align-items: flex-start;
+        flex-direction: column;
+    }
 }

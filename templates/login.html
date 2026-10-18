@@ -1,38 +1,45 @@
 {% extends "base.html" %}
 
-{% block title %}Doctor login · AreaMD{% endblock %}
+{% block title %}Sign in · AreaMD{% endblock %}
 
 {% block content %}
 <section class="page-heading">
-	<p class="eyebrow">Doctor portal</p>
-	<h1>Doctor sign in</h1>
+    <p class="eyebrow">AreaMD portal</p>
+    <h1>Sign in</h1>
+    <p>Select your account type to continue.</p>
 </section>
 
 <form method="post" action="{{ url_for('login') }}" class="edit-form login-form">
-	<label for="doctor-name">Doctor name</label>
-	<input
-		id="doctor-name"
-		name="doctor_name"
-		type="text"
-		autocomplete="username"
-		value="{{ request.form.get('doctor_name', '') }}"
-		required
-		autofocus
-	>
+    <label for="role">Account type</label>
+    <select id="role" name="role" required>
+        <option value="doctor" {% if request.form.get('role', 'doctor') == 'doctor' %}selected{% endif %}>Doctor</option>
+        <option value="admin" {% if request.form.get('role') == 'admin' %}selected{% endif %}>Admin</option>
+    </select>
 
-	<label for="password">Password</label>
-	<input
-		id="password"
-		name="password"
-		type="password"
-		autocomplete="current-password"
-		required
-	>
+    <label for="username">Name</label>
+    <input
+        id="username"
+        name="username"
+        type="text"
+        autocomplete="username"
+        value="{{ request.form.get('username', request.form.get('doctor_name', '')) }}"
+        required
+        autofocus
+    >
 
-	{% if error %}
-	<p class="form-error" role="alert">{{ error }}</p>
-	{% endif %}
+    <label for="password">Password</label>
+    <input
+        id="password"
+        name="password"
+        type="password"
+        autocomplete="current-password"
+        required
+    >
 
-	<button class="primary-button" type="submit">Sign in</button>
+    {% if error %}
+    <p class="form-error" role="alert">{{ error }}</p>
+    {% endif %}
+
+    <button class="primary-button" type="submit">Sign in</button>
 </form>
 {% endblock %}

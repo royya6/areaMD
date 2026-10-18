@@ -1,31 +1,34 @@
-<<<<<<< HEAD
-from flask import Flask, render_template, request, session, abort, redirect, url_for
-from flask_migrate import Migrate
-from config import Config
-from db import db
-from werkzeug.security import check_password_hash
-from copy import deepcopy
-from datetime import date
-from sqlalchemy.exc import IntegrityError
-=======
 from copy import deepcopy
 from datetime import date, datetime, timezone
 
-from flask import Flask, abort, redirect, render_template, request, url_for
+from flask import (
+    Flask,
+    abort,
+    flash,
+    redirect,
+    render_template,
+    request,
+    session,
+    url_for,
+)
+from flask_migrate import Migrate
+from sqlalchemy.exc import IntegrityError
+from werkzeug.security import check_password_hash
 
 from config import Config
 from db import db
+from models import Address, Admin, Doctor, Patient, Report  # noqa: F401
 from services.gemini import build_environmental_report
->>>>>>> 80879e743150af7eda17b3138d54a6666bdc1bf0
 from services.risk_profile import RiskProfileError, get_full_risk_profile
 
 
+# Demo patients use very high IDs so they can never clash with database IDs.
 MOCK_PATIENTS = [
     {
-        "id": 1,
-        "name": "Demo Patient",
+        "id": 10001,
+        "name": "Sarah Woods",
         "dob": "1980-01-12",
-        "conditions": ["Sample data only"],
+        "conditions": ["Asthma"],
         "addresses": [
             {"id": 1, "type": "Home", "postcode": "SW7 2AZ"},
             {"id": 2, "type": "Work", "postcode": "E1 6AN"},
@@ -33,10 +36,10 @@ MOCK_PATIENTS = [
         ],
     },
     {
-        "id": 2,
-        "name": "Demo Patient · Flood Warning Scenario",
+        "id": 10002,
+        "name": "Mark Green",
         "dob": "1975-06-20",
-        "conditions": ["Demo warning scenario"],
+        "conditions": ["COPD, hypertension"],
         "addresses": [
             {"id": 4, "type": "Home", "postcode": "E14 5AB"},
             {"id": 5, "type": "Work", "postcode": "E16 1AA"},
@@ -47,7 +50,7 @@ MOCK_PATIENTS = [
 MOCK_REPORTS = [
     {
         "id": 1,
-        "patient_id": 1,
+        "patient_id": 10001,
         "appointment_date": "2026-09-17",
         "appointment_label": "Example appointment",
         "summary_text": "Sample report only. No clinical conclusions or real patient data.",
@@ -55,6 +58,8 @@ MOCK_REPORTS = [
         "local_context": [],
     },
 ]
+
+ADDRESS_TYPES = {"Home", "Work", "Previous home"}
 
 
 def create_app(test_config=None):
@@ -65,9 +70,7 @@ def create_app(test_config=None):
     app.config.setdefault("MOCK_PATIENTS", deepcopy(MOCK_PATIENTS))
     app.config.setdefault("MOCK_REPORTS", deepcopy(MOCK_REPORTS))
     db.init_app(app)
-    migrate = Migrate(app, db)
-
-    from models import Doctor, Patient, Address, Report  # noqa
+    migrate = Migrate(app, db)  # noqa: F841
 
     @app.cli.command("init-db")
     def init_db():
@@ -75,51 +78,92 @@ def create_app(test_config=None):
         with app.app_context():
             db.create_all()
 
+    # ------------------------------------------------------------------
+    # Login
+    # ------------------------------------------------------------------
     @app.route("/", methods=["GET", "POST"])
     @app.route("/login", methods=["GET", "POST"])
     def login():
         error = None
+
         if request.method == "POST":
-            doctor_name = request.form.get("doctor_name", "").strip()
+            role = request.form.get("role", "doctor").strip().lower()
+            username = request.form.get(
+                "username",
+                request.form.get("doctor_name", ""),
+            ).strip()
             password = request.form.get("password", "")
-            doctors = Doctor.query.filter(
-                db.func.lower(Doctor.name) == doctor_name.lower()
-            ).all()
 
-            def password_matches(candidate):
-                stored_hash = (candidate.password_hash or "").strip()
-                if not stored_hash:
-                    return False
-                try:
-                    return check_password_hash(stored_hash, password)
-                except ValueError:
-                    return False
-
-            doctor = next(
-                (
-                    candidate
-                    for candidate in doctors
-                    if password_matches(candidate)
-                ),
-                None,
-            )
-            if doctor is None:
-                error = "Doctor name or password is incorrect."
+            if role not in ("doctor", "admin"):
+                error = "Please select a valid account type."
+            elif not username or not password:
+                error = "Please enter your username and password."
             else:
-                session["doctor_id"] = doctor.id
-                return redirect(url_for("patients"))
+                account_model = Admin if role == "admin" else Doctor
+                lowered = username.lower()
+
+                # Match on name (ignoring stray spaces in the stored value),
+                # and on email too where the model has one.
+                conditions = [
+                    db.func.lower(db.func.trim(account_model.name)) == lowered
+                ]
+                if hasattr(account_model, "email"):
+                    conditions.append(
+                        db.func.lower(db.func.trim(account_model.email)) == lowered
+                    )
+                accounts = account_model.query.filter(db.or_(*conditions)).all()
+
+                def password_matches(candidate):
+                    stored_hash = (candidate.password_hash or "").strip()
+                    if not stored_hash:
+                        return False
+                    try:
+                        return check_password_hash(stored_hash, password)
+                    except (ValueError, TypeError):
+                        return False
+
+                account = next(
+                    (c for c in accounts if password_matches(c)),
+                    None,
+                )
+
+                if account is None:
+                    error = "Name or password is incorrect."
+                elif role == "admin":
+                    session.clear()
+                    session["admin_id"] = account.id
+                    return redirect(url_for("admin_dashboard"))
+                else:
+                    session.clear()
+                    session["doctor_id"] = account.id
+                    return redirect(url_for("patients"))
 
         return render_template("login.html", error=error)
 
+    @app.route("/admin/dashboard")
+    def admin_dashboard():
+        admin_id = session.get("admin_id")
+        if (
+            not isinstance(admin_id, int)
+            or db.session.get(Admin, admin_id) is None
+        ):
+            return redirect(url_for("login"))
+        return render_template("admin_dashboard.html")
+
+    # ------------------------------------------------------------------
+    # Patients
+    # ------------------------------------------------------------------
     def patient_view(record):
         conditions = [
             condition.strip()
             for condition in (record.conditions or "").split(",")
             if condition.strip()
         ]
-        addresses = Address.query.filter_by(patient_id=record.id).order_by(
-            Address.id
-        ).all()
+        addresses = (
+            Address.query.filter_by(patient_id=record.id)
+            .order_by(Address.id)
+            .all()
+        )
         return {
             "id": record.id,
             "name": record.name,
@@ -151,68 +195,107 @@ def create_app(test_config=None):
             creation_error=error,
         )
 
-    @app.route("/patients", methods=["GET", "POST"])
+    @app.route("/patients", methods=["GET"])
     def patients():
-        if request.method == "POST":
-            doctor_id = session.get("doctor_id")
-            doctor = (
-                db.session.get(Doctor, doctor_id)
-                if isinstance(doctor_id, int) and not isinstance(doctor_id, bool)
-                else None
-            )
-            if doctor is None:
-                return redirect(url_for("login"))
+        return render_patient_list()
 
+    @app.route("/patients/add", methods=["GET", "POST"])
+    def add_patient():
+        doctors = Doctor.query.order_by(Doctor.id).all()
+        error = None
+
+        if request.method == "POST":
             name = request.form.get("name", "").strip()
-            dob_value = request.form.get("dob", "").strip()
+            nhs_number = "".join(
+                request.form.get("nhs_number", "").split()
+            ) or None
+            dob_text = request.form.get("dob", "").strip()
             ethnicity = request.form.get("ethnicity", "").strip()
             conditions = request.form.get("conditions", "").strip()
-            nhs_number = "".join(request.form.get("nhs_number", "").split())
+            doctor_id_text = request.form.get("doctor_id", "").strip()
+            address_type = request.form.get("address_type", "").strip()
+            postcode = request.form.get("postcode", "").strip().upper()
 
-            if not name or not dob_value or not ethnicity or not conditions:
-                return render_patient_list(
-                    "Complete all required patient fields."
-                ), 400
-            if len(name) > 120 or len(ethnicity) > 80 or len(conditions) > 500:
-                return render_patient_list(
-                    "Keep name, ethnicity, and conditions within their field limits."
-                ), 400
-            try:
-                dob = date.fromisoformat(dob_value)
-            except ValueError:
-                return render_patient_list("Enter a valid date of birth."), 400
-            if dob.isoformat() != dob_value or dob > date.today():
-                return render_patient_list("Enter a valid date of birth."), 400
-            if nhs_number and (not nhs_number.isdigit() or len(nhs_number) != 10):
-                return render_patient_list(
-                    "Enter a 10-digit NHS number or leave it blank."
-                ), 400
+            if not all([
+                name, dob_text, ethnicity, conditions, doctor_id_text,
+                address_type, postcode,
+            ]):
+                error = "Please complete all required fields."
+            elif len(name) > 120:
+                error = "The patient's name must be 120 characters or fewer."
+            elif nhs_number and (
+                not nhs_number.isdigit() or len(nhs_number) != 10
+            ):
+                error = "Enter a valid 10-digit NHS number."
+            elif len(ethnicity) > 80:
+                error = "The ethnicity field must be 80 characters or fewer."
+            elif len(conditions) > 500:
+                error = "Conditions must be 500 characters or fewer."
+            elif address_type not in {"Home", "Work"}:
+                error = "Choose Home or Work for the address type."
+            elif len(postcode) > 10:
+                error = "The postcode must be 10 characters or fewer."
 
-            mock_max_id = max(
-                (patient["id"] for patient in app.config["MOCK_PATIENTS"]),
-                default=0,
-            )
-            stored_max_id = db.session.query(db.func.max(Patient.id)).scalar() or 0
-            patient = Patient(
-                id=max(mock_max_id, stored_max_id) + 1,
-                name=name,
-                dob=dob,
-                ethnicity=ethnicity,
-                conditions=conditions,
-                nhs_number=nhs_number or None,
-                doctor_id=doctor.id,
-            )
-            db.session.add(patient)
-            try:
-                db.session.commit()
-            except IntegrityError:
-                db.session.rollback()
-                return render_patient_list(
-                    "The patient could not be saved. Check the details and try again."
-                ), 400
-            return redirect(url_for("patients"))
+            dob = None
+            if error is None:
+                try:
+                    dob = date.fromisoformat(dob_text)
+                    if dob > date.today():
+                        error = "Date of birth cannot be in the future."
+                except ValueError:
+                    error = "Please enter a valid date of birth."
 
-        return render_patient_list()
+            doctor = None
+            if error is None:
+                try:
+                    doctor = db.session.get(Doctor, int(doctor_id_text))
+                    if doctor is None:
+                        error = "Please select a valid doctor."
+                except ValueError:
+                    error = "Please select a valid doctor."
+
+            if error is None:
+                try:
+                    patient = Patient(
+                        nhs_number=nhs_number,
+                        name=name,
+                        dob=dob,
+                        ethnicity=ethnicity,
+                        conditions=conditions,
+                        doctor_id=doctor.id,
+                    )
+                    db.session.add(patient)
+                    # Get the database-generated ID before creating the address.
+                    db.session.flush()
+
+                    db.session.add(
+                        Address(
+                            patient_id=patient.id,
+                            address_type=address_type,
+                            postcode=postcode,
+                        )
+                    )
+                    # Save patient and address in one transaction.
+                    db.session.commit()
+
+                    flash("Patient and address added successfully.", "success")
+                    return redirect(
+                        url_for("patient_detail", patient_id=patient.id)
+                    )
+                except IntegrityError:
+                    db.session.rollback()
+                    error = "The patient could not be saved. Check the details and try again."
+                except Exception:
+                    db.session.rollback()
+                    app.logger.exception("Could not save patient and address")
+                    error = "The patient could not be saved. Please try again."
+
+        status = 400 if error else 200
+        return render_template(
+            "add_patient.html",
+            doctors=doctors,
+            error=error,
+        ), status
 
     def find_patient(patient_id):
         patient = next(
@@ -252,7 +335,7 @@ def create_app(test_config=None):
     def edit_patient(patient_id):
         patient = find_patient(patient_id)
         name = request.form.get("name", "").strip()
-        dob = request.form.get("dob", "").strip()
+        dob_text = request.form.get("dob", "").strip()
         conditions = request.form.get("conditions", "").strip()
 
         if not name or len(name) > 120 or len(conditions) > 500:
@@ -260,22 +343,46 @@ def create_app(test_config=None):
                 patient,
                 form_error="Enter a name and keep the fields within their limits.",
             ), 400
-        if dob:
+
+        dob = None
+        if dob_text:
             try:
-                date.fromisoformat(dob)
+                dob = date.fromisoformat(dob_text)
             except ValueError:
                 return render_patient_detail(
                     patient,
                     form_error="Enter a valid date of birth.",
                 ), 400
+            if dob > date.today():
+                return render_patient_detail(
+                    patient,
+                    form_error="Date of birth cannot be in the future.",
+                ), 400
 
-        patient["name"] = name
-        patient["dob"] = dob
-        patient["conditions"] = [
-            condition.strip()
-            for condition in conditions.split(",")
-            if condition.strip()
-        ]
+        if patient.get("database_record"):
+            record = db.session.get(Patient, patient_id)
+            if record is None:
+                abort(404)
+            record.name = name
+            record.dob = dob
+            record.conditions = conditions
+            try:
+                db.session.commit()
+            except Exception:
+                db.session.rollback()
+                app.logger.exception("Could not update patient")
+                return render_patient_detail(
+                    patient,
+                    form_error="The changes could not be saved. Please try again.",
+                ), 400
+        else:
+            patient["name"] = name
+            patient["dob"] = dob_text
+            patient["conditions"] = [
+                condition.strip()
+                for condition in conditions.split(",")
+                if condition.strip()
+            ]
         return redirect(url_for("patient_detail", patient_id=patient_id))
 
     @app.route("/patients/<int:patient_id>/addresses", methods=["POST"])
@@ -283,17 +390,36 @@ def create_app(test_config=None):
         patient = find_patient(patient_id)
         address_type = request.form.get("address_type", "").strip()
         postcode = request.form.get("postcode", "").strip().upper()
-        allowed_types = {"Home", "Work", "Previous home"}
-        if address_type not in allowed_types or not postcode or len(postcode) > 10:
+        if address_type not in ADDRESS_TYPES or not postcode or len(postcode) > 10:
             return render_patient_detail(
                 patient,
                 form_error="Choose an address type and enter a valid postcode.",
             ), 400
 
-        next_id = max((address["id"] for address in patient["addresses"]), default=0) + 1
-        patient["addresses"].append(
-            {"id": next_id, "type": address_type, "postcode": postcode}
-        )
+        if patient.get("database_record"):
+            db.session.add(
+                Address(
+                    patient_id=patient_id,
+                    address_type=address_type,
+                    postcode=postcode,
+                )
+            )
+            try:
+                db.session.commit()
+            except Exception:
+                db.session.rollback()
+                app.logger.exception("Could not add address")
+                return render_patient_detail(
+                    patient,
+                    form_error="The address could not be saved. Please try again.",
+                ), 400
+        else:
+            next_id = max(
+                (address["id"] for address in patient["addresses"]), default=0
+            ) + 1
+            patient["addresses"].append(
+                {"id": next_id, "type": address_type, "postcode": postcode}
+            )
         return redirect(url_for("patient_detail", patient_id=patient_id))
 
     @app.route(
@@ -302,28 +428,45 @@ def create_app(test_config=None):
     )
     def edit_address(patient_id, address_id):
         patient = find_patient(patient_id)
-        address = next(
-            (item for item in patient["addresses"] if item["id"] == address_id),
-            None,
-        )
-        if address is None:
-            abort(404)
-
         address_type = request.form.get("address_type", "").strip()
         postcode = request.form.get("postcode", "").strip().upper()
-        allowed_types = {"Home", "Work", "Previous home"}
-        if address_type not in allowed_types or not postcode or len(postcode) > 10:
+        if address_type not in ADDRESS_TYPES or not postcode or len(postcode) > 10:
             return render_patient_detail(
                 patient,
                 form_error="Choose an address type and enter a valid postcode.",
             ), 400
 
-        address.update({"type": address_type, "postcode": postcode})
+        if patient.get("database_record"):
+            record = db.session.get(Address, address_id)
+            if record is None or record.patient_id != patient_id:
+                abort(404)
+            record.address_type = address_type
+            record.postcode = postcode
+            try:
+                db.session.commit()
+            except Exception:
+                db.session.rollback()
+                app.logger.exception("Could not update address")
+                return render_patient_detail(
+                    patient,
+                    form_error="The address could not be saved. Please try again.",
+                ), 400
+        else:
+            address = next(
+                (item for item in patient["addresses"] if item["id"] == address_id),
+                None,
+            )
+            if address is None:
+                abort(404)
+            address.update({"type": address_type, "postcode": postcode})
         return redirect(url_for("patient_detail", patient_id=patient_id))
 
+    # ------------------------------------------------------------------
+    # Reports
+    # ------------------------------------------------------------------
     @app.route("/patients/<int:patient_id>/reports/<int:report_id>")
     def previous_report(patient_id, report_id):
-        find_patient(patient_id)
+        patient = find_patient(patient_id)
         report = next(
             (
                 item
@@ -336,7 +479,7 @@ def create_app(test_config=None):
             abort(404)
         return render_template(
             "report.html",
-            patient=find_patient(patient_id),
+            patient=patient,
             report=report,
         )
 
@@ -383,6 +526,7 @@ def create_app(test_config=None):
         )
 
     return app
+
 
 if __name__ == "__main__":
     app = create_app()

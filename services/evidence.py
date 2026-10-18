@@ -5,6 +5,8 @@ PLANNING_SOURCE = "Planning Data platform"
 IMD_SOURCE = "English Indices of Deprivation 2019"
 LAQN_SOURCE = "London Air Quality Network"
 EA_WATER_SOURCE = "Environment Agency Water Quality Archive"
+TAP_WATER_SOURCE = "Thames Water zone water quality"
+DEFAULT_WATER_RADIUS_KM = 5
 
 
 def _availability_state(value: object) -> str:
@@ -44,6 +46,63 @@ def _indicator(
         "detail": detail,
         "source": source,
     }
+
+
+def _tap_water_over_limit_count(drinking_water: dict[str, object]) -> int | None:
+    """Return how many regulated parameters had samples over limit, or None."""
+    parameters = drinking_water.get("regulated_parameters")
+    if not isinstance(parameters, dict) or not parameters:
+        return None
+    over = 0
+    for parameter in parameters.values():
+        if not isinstance(parameter, dict):
+            continue
+        samples_over = parameter.get("samples_above_limit")
+        if isinstance(samples_over, (int, float)) and samples_over > 0:
+            over += 1
+    return over
+
+
+def _tap_water_indicator(
+    address_type: str,
+    profile: dict[str, object],
+) -> dict[str, str]:
+    drinking_water = profile.get("drinking_water")
+    if not isinstance(drinking_water, dict) or drinking_water.get("available") is not True:
+        return _indicator(
+            "Tap water",
+            "unavailable",
+            "Tap water data unavailable",
+            f"{address_type}: no supply-zone data is held for this postcode.",
+            TAP_WATER_SOURCE,
+        )
+
+    zone = drinking_water.get("zone_name") or "supply zone"
+    over = _tap_water_over_limit_count(drinking_water)
+    if over is None:
+        return _indicator(
+            "Tap water",
+            "unavailable",
+            "Hardness and fluoride only",
+            f"{address_type}: {zone} zone hardness and fluoride are available, "
+            "but no regulatory sample results, so safety cannot be screened.",
+            TAP_WATER_SOURCE,
+        )
+    if over > 0:
+        return _indicator(
+            "Tap water",
+            "high",
+            "Tap water samples over a limit",
+            f"{address_type}: {over} parameter(s) in the {zone} zone had samples over the regulatory limit.",
+            TAP_WATER_SOURCE,
+        )
+    return _indicator(
+        "Tap water",
+        "low",
+        "Tap water samples within limits",
+        f"{address_type}: no screened parameter in the {zone} zone had samples over its limit (zone level, not this tap).",
+        TAP_WATER_SOURCE,
+    )
 
 
 def _build_indicators(
@@ -94,6 +153,8 @@ def _build_indicators(
             )
         )
 
+    indicators.append(_tap_water_indicator(address_type, profile))
+
     water_quality = profile.get("water_quality", {})
     observations = water_quality.get("observations", []) if isinstance(water_quality, dict) else []
     water_levels = []
@@ -113,8 +174,8 @@ def _build_indicators(
             _indicator(
                 "Water observations",
                 status,
-                "Water readings need attention" if status == "high" else "No elevated water readings",
-                f"{address_type}: nearby Environment Agency samples were screened for pH and nitrate where available.",
+                "Nearby water body readings need attention" if status == "high" else "No elevated nearby water body readings",
+                f"{address_type}: nearby river and lake samples (not tap water) were screened for pH and nitrate where available.",
                 EA_WATER_SOURCE,
             )
         )
@@ -123,8 +184,8 @@ def _build_indicators(
             _indicator(
                 "Water observations",
                 "unavailable",
-                "Water readings unavailable",
-                f"{address_type}: no usable nearby Environment Agency sample was returned.",
+                "Nearby water body readings unavailable",
+                f"{address_type}: no usable nearby river or lake sample was returned.",
                 EA_WATER_SOURCE,
             )
         )
@@ -151,6 +212,82 @@ def _build_indicators(
             )
         )
     return indicators
+
+
+def _tap_water_evidence(profile: dict[str, object]) -> dict[str, object]:
+    drinking_water = profile.get("drinking_water")
+    limitations_base = [
+        "Zone-level data describes the supply zone, not an individual tap.",
+        "This is not an overall drinking-water safety score.",
+    ]
+    if not isinstance(drinking_water, dict) or drinking_water.get("available") is not True:
+        return {
+            "topic": "tap_water_supply_zone",
+            "state": "unavailable",
+            "facts": {},
+            "source": TAP_WATER_SOURCE,
+            "reliability_context": {
+                "source_authority": "Thames Water",
+                "freshness": "not available",
+                "geographic_scope": "water supply zone",
+                "directness": "no supply-zone data held for this postcode",
+                "coverage": "only some Thames Water zones in London are held locally",
+                "limitations": [
+                    "No data for this postcode does not mean the water is a concern, only that it was not looked up.",
+                ],
+            },
+        }
+
+    facts = {}
+    if drinking_water.get("zone_name"):
+        facts["supply_zone"] = drinking_water["zone_name"]
+    hardness = drinking_water.get("hardness_calcium_carbonate_mg_l")
+    if hardness is not None:
+        rating = str(drinking_water.get("hardness_rating") or "").title()
+        facts["hardness"] = f"{hardness} mg/L as calcium carbonate" + (f" ({rating})" if rating else "")
+    if drinking_water.get("fluoride_mg_l") is not None:
+        facts["fluoride"] = f"{drinking_water['fluoride_mg_l']} mg/L"
+    if drinking_water.get("calcium_mg_l") is not None:
+        facts["calcium"] = f"{drinking_water['calcium_mg_l']} mg/L"
+
+    parameters = drinking_water.get("regulated_parameters")
+    if isinstance(parameters, dict) and parameters:
+        rows = []
+        for name, parameter in parameters.items():
+            if not isinstance(parameter, dict):
+                continue
+            unit = parameter.get("unit") or ""
+            rows.append(
+                {
+                    "parameter": name,
+                    "mean": f"{parameter.get('mean')} {unit}".strip(),
+                    "maximum": f"{parameter.get('maximum')} {unit}".strip(),
+                    "limit": f"{parameter.get('limit')} {unit}".strip(),
+                    "over_limit": f"{parameter.get('samples_above_limit', 0)} of {parameter.get('sample_count', '?')} samples",
+                }
+            )
+        if rows:
+            facts["annual_zone_samples"] = rows
+    else:
+        limitations_base.append(
+            "Regulatory sample results (such as lead and nitrate) are not available for this zone."
+        )
+
+    data_year = drinking_water.get("data_year")
+    return {
+        "topic": "tap_water_supply_zone",
+        "state": "available",
+        "facts": facts,
+        "source": TAP_WATER_SOURCE,
+        "reliability_context": {
+            "source_authority": "Thames Water",
+            "freshness": f"zone data for {data_year}" if data_year else "data year not stated",
+            "geographic_scope": "water supply zone, not the address",
+            "directness": "supply-zone measurements of the water delivered to customers",
+            "coverage": "only some Thames Water zones in London are held locally",
+            "limitations": limitations_base,
+        },
+    }
 
 
 def build_environmental_evidence(
@@ -248,30 +385,41 @@ def build_environmental_evidence(
                 }
             )
 
+        evidence.append(_tap_water_evidence(profile))
+
         water_quality = profile.get("water_quality", {})
         water_observations = (
             water_quality.get("observations", [])
             if isinstance(water_quality, dict)
             else []
         )
+        water_radius = (
+            water_quality.get("radius_km", DEFAULT_WATER_RADIUS_KM)
+            if isinstance(water_quality, dict)
+            else DEFAULT_WATER_RADIUS_KM
+        )
         if isinstance(water_quality, dict) and water_quality.get("available") is True:
+            water_facts = {
+                "radius_km": water_radius,
+                "observations": water_observations,
+            }
+            if water_quality.get("sampling_point_count") is not None:
+                water_facts["sampling_point_count"] = water_quality["sampling_point_count"]
             evidence.append(
                 {
-                    "topic": "water_quality_observations",
+                    "topic": "nearby_water_bodies",
                     "state": "available",
-                    "facts": {
-                        "radius_km": water_quality.get("radius_km"),
-                        "observations": water_observations,
-                    },
+                    "facts": water_facts,
                     "source": EA_WATER_SOURCE,
                     "reliability_context": {
                         "source_authority": "Environment Agency",
                         "freshness": "latest observation returned in the prior 364 days",
-                        "geographic_scope": "sampling points within 10 km",
-                        "directness": "measured sample result at a nearby sampling point",
-                        "coverage": "Environment Agency water-quality sampling network",
+                        "geographic_scope": f"sampling points within {water_radius} km",
+                        "directness": "measured sample result at a nearby river, lake or canal sampling point",
+                        "coverage": "Environment Agency water-quality sampling network (England)",
                         "limitations": [
                             "Water observations describe a nearby sampling point and do not measure household drinking water.",
+                            "Industrial and sewage discharge points are excluded.",
                             "Different determinands are sampled at different times and locations.",
                         ],
                     },
@@ -280,18 +428,18 @@ def build_environmental_evidence(
         else:
             evidence.append(
                 {
-                    "topic": "water_quality_observations",
+                    "topic": "nearby_water_bodies",
                     "state": "unavailable",
                     "facts": {},
                     "source": EA_WATER_SOURCE,
                     "reliability_context": {
                         "source_authority": "Environment Agency",
                         "freshness": "no usable observation returned",
-                        "geographic_scope": "sampling points within 10 km",
+                        "geographic_scope": f"sampling points within {water_radius} km",
                         "directness": "no nearby measured sample result available",
-                        "coverage": "Environment Agency water-quality sampling network",
+                        "coverage": "Environment Agency water-quality sampling network (England)",
                         "limitations": [
-                            "No nearby water-quality observation was returned; this does not prove that water quality is poor or good.",
+                            "No nearby water body observation was returned; this does not prove that water quality is poor or good.",
                             "This source does not measure household drinking water.",
                         ],
                     },

@@ -171,6 +171,42 @@
 		</section>
 		{% endif %}
 
+		<section class="surface-water-summary" aria-label="Nearby surface water">
+			<h4>Nearby surface water <span class="muted">(rivers and lakes, not tap water)</span></h4>
+			{% if item.profile.surface_water is defined and item.profile.surface_water.available %}
+				{% set sw = item.profile.surface_water %}
+				<p class="muted">Latest reading per parameter from {{ sw.sampling_point_count }} Environment Agency sampling point{{ '' if sw.sampling_point_count == 1 else 's' }} within {{ sw.radius_km }} km, last 12 months.</p>
+				<details>
+					<summary>Show {{ sw.observations | length }} readings</summary>
+					<div class="water-quality-table-wrap">
+						<table class="water-quality-table">
+							<thead>
+								<tr>
+									<th scope="col">Parameter</th>
+									<th scope="col">Value</th>
+									<th scope="col">Sampled</th>
+									<th scope="col">Location</th>
+								</tr>
+							</thead>
+							<tbody>
+								{% for obs in sw.observations %}
+								<tr>
+									<th scope="row">{{ obs.parameter }}</th>
+									<td>{{ obs.value }} {{ obs.unit or "" }}</td>
+									<td>{{ obs.sampled_at[:10] }}</td>
+									<td>{{ obs.sampling_point or "Unnamed" }}</td>
+								</tr>
+								{% endfor %}
+							</tbody>
+						</table>
+					</div>
+				</details>
+				<p class="muted">Describes the local environment, not the water supplied to this address. Covers England only.</p>
+			{% else %}
+				<p class="muted">No surface water readings available for this location.</p>
+			{% endif %}
+		</section>
+
 		{% if item.profile.errors %}
 			<p class="status status-warning">Some source data could not be retrieved.</p>
 		{% endif %}
@@ -180,11 +216,7 @@
 					  &middot; {{ item.profile.air_quality.distance_km }} km
 				{% endif %}
 			</p>
-			{% if item.profile.air_quality.measurements %}
-			<p class="muted">Numeric pollutant readings available in the generated report's source details.</p>
-			{% else %}
-			<p class="muted">No numeric reading was returned for this monitoring window.</p>
-			{% endif %}
+			<p class="muted">Site location only; pollutant readings are not included.</p>
 		{% else %}
 			<p><strong>Nearest LAQN site:</strong> unavailable</p>
 		{% endif %}

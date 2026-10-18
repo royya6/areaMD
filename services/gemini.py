@@ -92,7 +92,8 @@ def _qualitative_observations(evidence: dict[str, object]) -> list[str]:
 		for item in address.get("items", []):
 			if not isinstance(item, dict) or item.get("category") not in {
 				"Air quality",
-				"Water observations",
+				"Tap water quality",
+				"Nearby surface water quality"
 			}:
 				continue
 			observations.append(
@@ -127,13 +128,19 @@ def _findings_overview(evidence: dict[str, object]) -> str:
 	else:
 		parts.append("air readings are unavailable")
 
-	water = statuses.get("Water observations", set())
-	if "high" in water:
-		parts.append("some nearby water readings need attention")
-	elif "low" in water:
-		parts.append("nearby screened water readings show no elevated values")
+	tap = statuses.get("Tap water", set())
+	if "high" in tap:
+		parts.append("some tap-water zone samples exceeded a limit")
+	elif "low" in tap:
+		parts.append("tap-water zone samples were within limits")
 	else:
-		parts.append("nearby water readings are unavailable")
+		parts.append("tap-water sample results are unavailable")
+		
+	surface = statuses.get("Nearby surface water", set())
+	if "available" in surface:
+		parts.append("nearby surface-water readings are available")
+	else:
+		parts.append("nearby surface-water readings are unavailable")
 
 	return "This report finds " + "; ".join(parts) + "."
 

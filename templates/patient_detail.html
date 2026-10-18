@@ -10,6 +10,16 @@
 		<button class="primary-button" type="submit">Generate report</button>
 	</form>
 </section>
+<section class="report-progress" id="report-progress" aria-live="polite" aria-label="Estimated report generation progress" hidden>
+	<div class="progress-heading">
+		<strong id="progress-status">Starting report generation</strong>
+		<span id="progress-percent">0%</span>
+	</div>
+	<div class="progress-track" role="progressbar" aria-labelledby="progress-status" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+		<div class="progress-bar" id="progress-bar"></div>
+	</div>
+	<p class="muted">Estimated progress while live environmental sources and Gemini are queried.</p>
+</section>
 
 	{% if form_error %}
 	<p class="form-error" role="alert">{{ form_error }}</p>
@@ -158,7 +168,33 @@
 	document.getElementById("report-form").addEventListener("submit", function () {
 		const button = this.querySelector("button[type=submit]");
 		button.disabled = true;
-		button.textContent = "Generating...";
+		button.textContent = "Generating report...";
+
+		const progress = document.getElementById("report-progress");
+		const status = document.getElementById("progress-status");
+		const percent = document.getElementById("progress-percent");
+		const bar = document.getElementById("progress-bar");
+		const track = progress.querySelector('[role="progressbar"]');
+		const stages = [
+			[15, "Resolving saved addresses"],
+			[40, "Collecting live air, water, and planning data"],
+			[65, "Preparing environmental evidence"],
+			[85, "Generating the clinician summary"],
+		];
+		progress.hidden = false;
+		let stage = 0;
+		const updateProgress = () => {
+			const [value, label] = stages[Math.min(stage, stages.length - 1)];
+			status.textContent = label;
+			percent.textContent = `${value}%`;
+			bar.style.width = `${value}%`;
+			track.setAttribute("aria-valuenow", value);
+			if (stage < stages.length - 1) {
+				stage += 1;
+				window.setTimeout(updateProgress, 1800);
+			}
+		};
+		updateProgress();
 	});
 </script>
 {% endblock %}

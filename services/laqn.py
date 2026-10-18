@@ -1,4 +1,5 @@
 import math
+from datetime import date, timedelta
 
 import requests
 
@@ -8,6 +9,8 @@ SITES_API_URL = (
 )
 EARTH_RADIUS_KM = 6371
 REQUEST_TIMEOUT_SECONDS = 8
+MEASUREMENT_TIMEOUT_SECONDS = 12
+MEASUREMENT_LOOKBACK_OFFSETS = (0, 30, 90, 180, 365)
 
 
 class LAQNResponseError(ValueError):
@@ -68,6 +71,8 @@ def nearest_site(latitude: float, longitude: float) -> dict[str, object] | None:
 	closest_site = None
 	closest_distance = math.inf
 	for site in sites:
+		if site.get("@DateClosed"):
+			continue
 		try:
 			site_latitude = float(site["@Latitude"])
 			site_longitude = float(site["@Longitude"])
@@ -94,20 +99,93 @@ def nearest_site(latitude: float, longitude: float) -> dict[str, object] | None:
 	if closest_site is None:
 		return None
 
-	return {
+	result = {
 		"site_name": closest_site.get("@SiteName"),
 		"site_type": closest_site.get("@SiteType"),
 		"distance_km": round(closest_distance, 2),
 		"borough": closest_site.get("@LocalAuthorityName"),
 	}
+	if closest_site.get("@SiteCode"):
+		result["site_code"] = closest_site["@SiteCode"]
+	return result
+
+
+def _latest_measurements(site_code: str) -> dict[str, object]:
+	"""Return the latest numeric readings available for an open LAQN site."""
+	today = date.today()
+	for offset in MEASUREMENT_LOOKBACK_OFFSETS:
+		start = today - timedelta(days=offset + 2)
+		end = today - timedelta(days=offset)
+		url = (
+			"https://api.erg.ic.ac.uk/AirQuality/Data/Site/"
+			f"SiteCode={site_code}/StartDate={start}/EndDate={end}/Json"
+		)
+		response = requests.get(url, timeout=MEASUREMENT_TIMEOUT_SECONDS)
+		response.raise_for_status()
+		try:
+			data = response.json()["AirQualityData"]["Data"]
+			if isinstance(data, dict):
+				data = [data]
+			if not isinstance(data, list) or any(
+				not isinstance(item, dict) for item in data
+			):
+				raise TypeError
+		except (KeyError, TypeError, ValueError) as error:
+			raise LAQNResponseError(
+				"LAQN measurements API returned an unexpected response"
+			) from error
+
+		latest = {}
+		for item in data:
+			species = item.get("@SpeciesCode")
+			value = item.get("@Value")
+			measured_at = item.get("@MeasurementDateGMT")
+			if not isinstance(species, str) or not isinstance(measured_at, str):
+				continue
+			try:
+				numeric_value = float(value)
+			except (TypeError, ValueError):
+				continue
+			if not math.isfinite(numeric_value):
+				continue
+			previous = latest.get(species)
+			if previous is None or measured_at > previous["measured_at"]:
+				latest[species] = {
+					"value": numeric_value,
+					"measured_at": measured_at,
+				}
+		if latest:
+			return {
+				"measurements": latest,
+				"measurement_window": {
+					"from": str(start),
+					"to": str(end),
+				},
+			}
+
+	return {"measurements": {}, "measurement_window": None}
 
 
 def get_air_quality(latitude: float, longitude: float) -> dict[str, object]:
-	"""Return nearest-site metadata, not pollutant measurements."""
+	"""Return nearest open-site metadata and its latest numeric readings."""
 	site = nearest_site(latitude, longitude)
 	if site is None:
 		return {"available": False}
-	return {"available": True, **site}
+	result = {"available": True, **site}
+	site_code = site.get("site_code")
+	if not isinstance(site_code, str) or not site_code:
+		return result
+	try:
+		result.update(_latest_measurements(site_code))
+	except (requests.RequestException, LAQNResponseError):
+		return {
+			**result,
+			"measurements": {},
+			"measurement_window": None,
+			"measurements_available": False,
+		}
+	result["measurements_available"] = bool(result["measurements"])
+	return result
 
 
 if __name__ == "__main__":

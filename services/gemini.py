@@ -291,6 +291,10 @@ def build_summary_prompt(
 		"string array 'limitations', and array 'indicator_findings'. Each indicator finding "
 		"must contain 'address_type', 'category', 'title', and 'detail', and should cover "
 		"the supplied Air quality, Water observations, and Flood context indicators. "
+		"If selected local news articles are supplied, include one concise observation "
+		"about the most clearly relevant recent environmental incident, naming the "
+		"area or publisher where useful. State that it is local reporting and do not "
+		"claim exposure at the property. Do not silently omit relevant supplied news. "
 		"Keep tile titles short and factual. Keep every entry factual and concise; the "
 		f"combined output must be under {MAX_REPORT_WORDS} words.\n\n"
 		f"Priority findings JSON (use this first):\n{priority_json}\n\n"
@@ -327,8 +331,9 @@ def build_article_selection_prompt(
 	]
 	return (
 		"Select only candidate IDs for articles that report an actual environmental "
-		"incident (fire, smoke, pollution, contamination, water-supply incident, or "
-		"flooding) and whose title or description explicitly locates the incident in "
+		"incident (dust, debris, construction, fire, smoke, pollution, contamination, "
+		"water-supply incident, industrial activity, or flooding) and whose title or "
+		"description explicitly locates the incident in "
 		"the named local-authority area. Exclude articles that merely mention the "
 		"area, use it as a political term, describe routine planning or policy, or "
 		"refer to another place with a similar name. Do not infer an event location "
@@ -425,11 +430,26 @@ def search_local_context(
 		)
 	except GeminiProviderError as error:
 		logger.warning("Gemini article selection unavailable (%s)", error.code)
+		if news.get("source_type") == "rss":
+			return {
+				**news,
+				"selected_articles": news["articles"][:3],
+				"selection_status": "rss_fallback",
+				"selection_error_code": error.code,
+			}
 		return {
 			**news,
 			"selected_articles": [],
 			"selection_status": "unavailable",
 			"error_code": error.code,
+		}
+	if not selected_articles and news.get("source_type") == "rss":
+		selected_articles = news["articles"][:3]
+		return {
+			**news,
+			"selected_articles": selected_articles,
+			"selection_status": "rss_fallback",
+			"selection_error_code": "no_gemini_match",
 		}
 	return {
 		**news,

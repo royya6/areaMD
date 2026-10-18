@@ -8,6 +8,27 @@
 	<h1>{{ report.appointment_label }}</h1>
 	<p class="muted">{{ report.appointment_date }} · {{ patient.name }}</p>
 </section>
+{% if report.environmental_evidence is defined and report.environmental_evidence.indicators %}
+<section class="indicator-panel" aria-labelledby="indicator-heading">
+	<div class="section-heading">
+		<h2 id="indicator-heading">Environmental screening</h2>
+		<p class="report-note">Observed area context for clinical review; not a diagnosis.</p>
+	</div>
+	{% for address in report.environmental_evidence.indicators %}
+	<h3 class="indicator-address">{{ address.address_type }}</h3>
+	<div class="indicator-grid">
+		{% for item in address["items"] %}
+		<article class="indicator-tile indicator-{{ item.status }}">
+			<p class="indicator-category">{{ item.category }}</p>
+			<p class="indicator-title">{{ item.title }}</p>
+			<p>{{ item.detail }}</p>
+			<span class="indicator-source">{{ item.source }}</span>
+		</article>
+		{% endfor %}
+	</div>
+	{% endfor %}
+</section>
+{% endif %}
 <section class="report-summary" aria-labelledby="summary-heading">
 	<h2 id="summary-heading">Summary</h2>
 	{% if report.summary_data is defined and report.summary_data.overview %}

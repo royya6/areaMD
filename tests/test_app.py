@@ -155,7 +155,7 @@ class AppRoutesTests(unittest.TestCase):
         self.assertIn(b"https://council.example/fire", response.data)
 
     def test_unknown_patient_returns_not_found(self):
-        response = self.client.get("/patients/2")
+        response = self.client.get("/patients/999")
 
         self.assertEqual(response.status_code, 404)
 

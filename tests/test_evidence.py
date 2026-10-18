@@ -23,6 +23,7 @@ class BuildEnvironmentalEvidenceTests(unittest.TestCase):
             "planning_flags": {
                 "flood-risk-zone": False,
                 "green-belt": None,
+                "brownfield-land": True,
             },
             "deprivation": {
                 "available": True,
@@ -51,11 +52,25 @@ class BuildEnvironmentalEvidenceTests(unittest.TestCase):
         states = {
             (item.get("dataset"), item["state"])
             for item in observations
-            if item["topic"] == "planning_dataset_lookup"
+            if item["topic"]
+            in {"planning_dataset_lookup", "brownfield_land_register_match"}
         }
         self.assertEqual(
             states,
-            {("flood-risk-zone", "no_match_returned"), ("green-belt", "unavailable")},
+            {
+                ("flood-risk-zone", "no_match_returned"),
+                ("green-belt", "unavailable"),
+                ("brownfield-land", "listed"),
+            },
+        )
+        brownfield = next(
+            item
+            for item in observations
+            if item["topic"] == "brownfield_land_register_match"
+        )
+        self.assertIn(
+            "does not establish active construction",
+            brownfield["reliability_context"]["limitations"][0],
         )
         nearest_site = next(
             item for item in observations if item["topic"] == "nearest_monitoring_site"
@@ -72,6 +87,13 @@ class BuildEnvironmentalEvidenceTests(unittest.TestCase):
             item for item in observations if item["topic"] == "area_deprivation_deciles"
         )
         self.assertNotIn("health_decile", deprivation["facts"])
+        living_environment = next(
+            item
+            for item in observations
+            if item["topic"] == "living_environment_quality_proxy"
+        )
+        self.assertEqual(living_environment["state"], "flagged")
+        self.assertEqual(living_environment["facts"]["living_env_decile"], 3)
         self.assertEqual(evidence["generated_at"], "2026-10-17T00:00:00+00:00")
 
 

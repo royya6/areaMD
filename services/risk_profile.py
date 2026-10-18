@@ -8,6 +8,7 @@ from services.planning import (
     get_planning_flags,
 )
 from services.postcodes import PostcodeResponseError, lookup_postcode
+from services.water import get_drinking_water_quality
 
 
 class RiskProfileError(RuntimeError):
@@ -55,12 +56,15 @@ def get_full_risk_profile(postcode: str) -> dict[str, object]:
         deprivation = {"available": False, "reason": "lookup_failed"}
         errors["deprivation"] = "lookup_failed"
 
+    drinking_water = get_drinking_water_quality(location["postcode"])
+
     return {
         "postcode": location["postcode"],
         "location": location,
         "air_quality": air_quality,
         "planning_flags": planning_flags,
         "deprivation": deprivation,
+        "drinking_water": drinking_water,
         "errors": errors,
     }
 

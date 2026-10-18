@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+
+{% block title %}Add patient · AreaMD{% endblock %}
+
+{% block content %}
+<a class="back-link" href="{{ url_for('patients') }}">Back to patients</a>
+<section class="page-heading">
+	<h1>Add patient</h1>
+</section>
+
+{% if creation_error %}
+<p class="form-error" role="alert">{{ creation_error }}</p>
+{% endif %}
+
+<form method="post" action="{{ url_for('create_patient') }}" class="edit-form create-patient-form">
+	<label for="new-patient-name">Name</label>
+	<input id="new-patient-name" name="name" type="text" maxlength="120" value="{{ request.form.get('name', '') }}" required>
+
+	<label for="new-patient-dob">Date of birth</label>
+	<input id="new-patient-dob" name="dob" type="date" value="{{ request.form.get('dob', '') }}" required>
+
+	<label for="new-patient-ethnicity">Ethnicity</label>
+	<input id="new-patient-ethnicity" name="ethnicity" type="text" maxlength="80" value="{{ request.form.get('ethnicity', '') }}" required>
+
+	<label for="new-patient-nhs-number">NHS number <span class="muted">(optional)</span></label>
+	<input id="new-patient-nhs-number" name="nhs_number" type="text" inputmode="numeric" maxlength="12" value="{{ request.form.get('nhs_number', '') }}">
+
+	<label for="new-patient-conditions">Conditions</label>
+	<textarea id="new-patient-conditions" name="conditions" rows="2" maxlength="500" required>{{ request.form.get('conditions', '') }}</textarea>
+
+	<button class="primary-button" type="submit">Add patient</button>
+</form>
+{% endblock %}

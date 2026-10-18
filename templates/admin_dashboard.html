@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+
+{% block title %}Doctor accounts · AreaMD{% endblock %}
+
+{% block content %}
+<section class="page-heading">
+	<p class="eyebrow">Administrator dashboard</p>
+	<h1>Doctor accounts</h1>
+	<p class="muted">Patient totals and account access for each doctor.</p>
+</section>
+
+<div class="admin-table-wrap">
+	<table class="admin-table">
+		<thead>
+			<tr>
+				<th scope="col">Doctor</th>
+				<th scope="col">Patients</th>
+				<th scope="col">Account status</th>
+				<th scope="col">Lock control</th>
+			</tr>
+		</thead>
+		<tbody>
+			{% for row in doctor_rows %}
+			<tr>
+				<th scope="row">{{ row.doctor.name }}</th>
+				<td>{{ row.patient_count }}</td>
+				<td>
+					<span class="account-status{% if not row.is_enabled %} account-status-locked{% endif %}">
+						{{ "On" if row.is_enabled else "Locked" }}
+					</span>
+				</td>
+				<td>
+					<form method="post" action="{{ url_for('toggle_doctor_account', doctor_id=row.doctor.id) }}" class="account-control">
+						<button
+							type="submit"
+							class="account-toggle{% if row.is_enabled %} account-toggle-on{% endif %}"
+							role="switch"
+							aria-checked="{{ 'true' if row.is_enabled else 'false' }}"
+							aria-label="Toggle account lock for {{ row.doctor.name }}"
+							title="Toggle account lock for {{ row.doctor.name }}"
+						></button>
+						<span>{{ "Lock account" if row.is_enabled else "Unlock account" }}</span>
+					</form>
+				</td>
+			</tr>
+			{% else %}
+			<tr>
+				<td colspan="4" class="muted">No doctor accounts found.</td>
+			</tr>
+			{% endfor %}
+		</tbody>
+	</table>
+</div>
+{% endblock %}

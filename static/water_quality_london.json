@@ -1,0 +1,80 @@
+{
+  "source": "Thames Water postcode water-quality API",
+  "source_url": "https://www.thameswater.co.uk/help/water-and-waste-help/water-quality/check-your-water-quality",
+  "snapshot_date": "2026-10-18",
+  "scope_note": "Snapshot of exact postcode responses observed from the provider API. These are water-zone measurements, not individual tap tests or an overall safety score. Unlisted postcodes have no local data and should be omitted.",
+  "postcodes": {
+    "SW1A2AA": {
+      "zone_code": "NLW33",
+      "zone_name": "Parliament",
+      "hardness_calcium_carbonate_mg_l": 264,
+      "hardness_rating": "HARD",
+      "hardness_degrees_clarke": 18.5,
+      "hardness_degrees_german": 14.8,
+      "hardness_degrees_french": 26.4,
+      "hardness_millimoles_litre": 2.64,
+      "fluoride_mg_l": 0.15,
+      "calcium_mg_l": 105.7,
+      "report_filename": "WQ_Report_Parliament.pdf",
+      "report_zone_code": "NLW33",
+      "data_year": 2025
+    },
+    "SW72AZ": {
+      "zone_code": "NLW44",
+      "zone_name": "St Johns Wood & Mayfair",
+      "hardness_calcium_carbonate_mg_l": 271,
+      "hardness_rating": "HARD",
+      "hardness_degrees_clarke": 18.9,
+      "hardness_degrees_german": 15.1,
+      "hardness_degrees_french": 27.1,
+      "hardness_millimoles_litre": 2.71,
+      "fluoride_mg_l": 0.14,
+      "calcium_mg_l": 108.2,
+      "report_filename": "WQ_Report_St_Johns_Wood_&_Mayfair.pdf",
+      "report_zone_code": "NLW44",
+      "data_year": 2025
+    },
+    "E16AN": {
+      "zone_code": "NLE11",
+      "zone_name": "Whitechapel",
+      "hardness_calcium_carbonate_mg_l": 273,
+      "hardness_rating": "HARD",
+      "hardness_degrees_clarke": 19.1,
+      "hardness_degrees_german": 15.3,
+      "hardness_degrees_french": 27.3,
+      "hardness_millimoles_litre": 2.73,
+      "fluoride_mg_l": 0.16,
+      "calcium_mg_l": 109.1,
+      "report_filename": "WQ_Report_Whitechapel.pdf",
+      "report_zone_code": "NLE11",
+      "report_url": "https://water-quality-api.prod.p.webapp.thameswater.co.uk/water-quality-api/Zone/NLE11",
+      "data_year": 2025,
+      "regulated_parameters": {
+        "Nitrate": {
+          "mean": 31.0,
+          "maximum": 35.8,
+          "unit": "mg/L",
+          "limit": 50,
+          "sample_count": 24,
+          "samples_above_limit": 0
+        },
+        "Nitrite": {
+          "mean": 0.02,
+          "maximum": 0.06,
+          "unit": "mg/L",
+          "limit": 0.5,
+          "sample_count": 24,
+          "samples_above_limit": 0
+        },
+        "Lead": {
+          "mean": 1.4,
+          "maximum": 4.7,
+          "unit": "µg/L",
+          "limit": 10,
+          "sample_count": 8,
+          "samples_above_limit": 0
+        }
+      }
+    }
+  }
+}

@@ -244,6 +244,30 @@ h3 {
   max-width: 420px;
 }
 
+.water-quality-table-wrap {
+  margin: 12px 0;
+  overflow-x: auto;
+}
+
+.water-quality-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 13px;
+}
+
+.water-quality-table th,
+.water-quality-table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+}
+
+.water-quality-table thead th {
+  color: var(--muted);
+  font-size: 11px;
+}
+
 .edit-form label,
 .add-address-form label {
   margin-top: 5px;

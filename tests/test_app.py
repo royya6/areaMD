@@ -235,7 +235,49 @@ class AppRoutesTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertIn(b"Area context", response.data)
+        self.assertNotIn(b"Tap-water supply zone", response.data)
         self.assertEqual(get_full_risk_profile.call_count, 3)
+
+    @patch("app.get_full_risk_profile")
+    def test_report_shows_water_data_only_when_snapshot_matches(
+        self, get_full_risk_profile
+    ):
+        get_full_risk_profile.return_value = {
+            "postcode": "SW1A 2AA",
+            "drinking_water": {
+                "available": True,
+                "zone_name": "Parliament",
+                "hardness_calcium_carbonate_mg_l": 264,
+                "hardness_rating": "HARD",
+                "fluoride_mg_l": 0.15,
+                "calcium_mg_l": 105.7,
+                "data_year": 2025,
+                "summary": "Hardness is mineral content, not a safety score.",
+                "source_url": "https://example.test/source",
+                "report_url": "https://example.test/report.pdf",
+                "regulated_parameters": {
+                    "Nitrate": {
+                        "mean": 31.0,
+                        "maximum": 35.8,
+                        "unit": "mg/L",
+                        "limit": 50,
+                        "sample_count": 24,
+                        "samples_above_limit": 0,
+                    }
+                },
+            },
+            "errors": {},
+        }
+
+        response = self.client.post("/patients/1/report")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b"Tap-water supply zone", response.data)
+        self.assertIn(b"Parliament", response.data)
+        self.assertIn(b"Hardness is mineral content, not a safety score.", response.data)
+        self.assertIn(b"Annual zone sample results", response.data)
+        self.assertIn(b"31.0 mg/L", response.data)
+        self.assertIn(b"0 of 24", response.data)
 
     @patch("app.get_full_risk_profile")
     def test_postcode_failure_is_reported_without_exposing_exception(

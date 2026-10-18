@@ -22,11 +22,17 @@ LOCATION = {
 
 class GetFullRiskProfileTests(unittest.TestCase):
     @patch("services.risk_profile.get_imd_data")
+    @patch("services.risk_profile.get_drinking_water_quality")
     @patch("services.risk_profile.get_planning_flags")
     @patch("services.risk_profile.get_air_quality")
     @patch("services.risk_profile.lookup_postcode")
     def test_returns_json_serializable_profile(
-        self, lookup_postcode, get_air_quality, get_planning_flags, get_imd_data
+        self,
+        lookup_postcode,
+        get_air_quality,
+        get_planning_flags,
+        get_drinking_water_quality,
+        get_imd_data,
     ):
         lookup_postcode.return_value = LOCATION
         get_air_quality.return_value = {"available": False}
@@ -39,16 +45,23 @@ class GetFullRiskProfileTests(unittest.TestCase):
             "living_env_decile": 2,
             "health_decile": 4,
         }
-
+        get_drinking_water_quality.return_value = {
+            "zone_name": "Parliament",
+            "hardness_rating": "HARD",
+            "hardness_calcium_carbonate_mg_l": 264,
+            "summary": "Zone hardness summary.",
+        }
         profile = get_full_risk_profile("SW7 2AZ")
 
         self.assertEqual(profile["postcode"], "SW7 2AZ")
         self.assertEqual(profile["location"], LOCATION)
+        self.assertEqual(profile["drinking_water"]["zone_name"], "Parliament")
         self.assertEqual(profile["errors"], {})
         self.assertEqual(json.loads(json.dumps(profile)), profile)
         get_air_quality.assert_called_once_with(51.4988, -0.1749)
         get_planning_flags.assert_called_once_with(51.4988, -0.1749)
         get_imd_data.assert_called_once_with("E01004736")
+        get_drinking_water_quality.assert_called_once_with("SW7 2AZ")
 
     @patch("services.risk_profile.get_imd_data", side_effect=OSError)
     @patch(
@@ -61,7 +74,11 @@ class GetFullRiskProfileTests(unittest.TestCase):
     )
     @patch("services.risk_profile.lookup_postcode", return_value=LOCATION)
     def test_retains_partial_results_on_source_failures(
-        self, lookup_postcode, get_air_quality, get_planning_flags, get_imd_data
+        self,
+        lookup_postcode,
+        get_air_quality,
+        get_planning_flags,
+        get_imd_data,
     ):
         profile = get_full_risk_profile("SW7 2AZ")
 

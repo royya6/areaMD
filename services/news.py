@@ -8,7 +8,19 @@ SEARCH_DATE_RANGE = "30d"
 RESULTS_PER_QUERY = 10
 MAX_ARTICLES_PER_AUTHORITY = 12
 MAX_QUERIES_PER_AUTHORITY = 4
-ALLOWED_SEARCH_TOPICS = frozenset({"fire", "smoke", "pollution", "water", "flooding"})
+ALLOWED_SEARCH_TOPICS = frozenset(
+    {
+        "construction",
+        "debris",
+        "dust",
+        "fire",
+        "flooding",
+        "industrial",
+        "pollution",
+        "smoke",
+        "water",
+    }
+)
 
 
 class _PlainTextExtractor(HTMLParser):

@@ -26,7 +26,7 @@ class Address(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     patient_id = db.Column(db.Integer, db.ForeignKey("patient.id"))
     postcode = db.Column(db.String(10))
-    address_type = db.Column(db.String(10))   # 'home' or 'work'
+    address_type = db.Column(db.String(30))   # 'home', 'work' or 'previous'
     lat = db.Column(db.Float)
     lon = db.Column(db.Float)
     lsoa_code = db.Column(db.String(12))

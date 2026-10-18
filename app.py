@@ -23,11 +23,11 @@ MOCK_PATIENTS = [
     },
     {
         "id": 2,
-        "name": "Demo Patient · Flood Warning Scenario",
+        "name": "Demo Patient · Air and Flood Context",
         "dob": "1975-06-20",
         "conditions": ["Demo warning scenario"],
         "addresses": [
-            {"id": 4, "type": "Home", "postcode": "E14 5AB"},
+            {"id": 4, "type": "Home", "postcode": "NW1 5JD"},
             {"id": 5, "type": "Work", "postcode": "E16 1AA"},
         ],
     },

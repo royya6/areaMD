@@ -40,9 +40,6 @@
 		{% endfor %}
 	</ul>
 	{% endif %}
-	{% if report.summary_data.limitations %}
-	<p class="muted"><strong>Data limitations:</strong> {{ report.summary_data.limitations | join("; ") }}</p>
-	{% endif %}
 	{% else %}
 	<p class="report-text">{{ report.summary_text or report.summary }}</p>
 	{% endif %}

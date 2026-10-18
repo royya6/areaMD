@@ -87,8 +87,11 @@ def _provider_error_code(error: Exception) -> str:
 	return "provider_request_failed"
 
 
-def _fallback_summary(evidence: dict[str, object]) -> tuple[str, dict[str, object]]:
-	observations = _qualitative_observations(evidence)
+def _fallback_summary(
+	evidence: dict[str, object],
+	local_context: list[dict[str, object]] | None = None,
+) -> tuple[str, dict[str, object]]:
+	observations = _news_observations(local_context or [])
 	overview = _findings_overview(evidence)
 	return overview, {
 		"overview": overview,
@@ -99,6 +102,23 @@ def _fallback_summary(evidence: dict[str, object]) -> tuple[str, dict[str, objec
 		],
 		"indicator_findings": _fallback_indicator_findings(evidence),
 	}
+
+
+def _news_observations(local_context: list[dict[str, object]]) -> list[str]:
+	observations = []
+	for context in local_context:
+		if not isinstance(context, dict):
+			continue
+		for article in context.get("selected_articles", []):
+			if not isinstance(article, dict):
+				continue
+			title = article.get("title")
+			if not isinstance(title, str) or not title.strip():
+				continue
+			publisher = article.get("publisher")
+			source = f" ({publisher})" if isinstance(publisher, str) and publisher else ""
+			observations.append(f"Local reporting: {title.strip()}{source}.")
+	return list(dict.fromkeys(observations))[:MAX_OBSERVATIONS]
 
 
 def _fallback_indicator_findings(
@@ -277,7 +297,8 @@ def build_summary_prompt(
 		"recency, and whether an item is a direct measurement or contextual "
 		"proxy. A planning lookup with no match does not prove absence; no web "
 		"result does not prove no event occurred. Use the supplied indicator statuses "
-		"to state the actual findings first. Do not merely list "
+		"to write one brief overview of the most important concerns across locations. "
+		"Do not repeat tile statuses as separate observations or merely list "
 		"which datasets were queried. Do not include raw numeric measurements in "
 		"the overview, observations, or tile findings; keep those in the source details. "
 		"Never begin with 'Environmental evidence', 'Environmental data brief', "
@@ -295,6 +316,7 @@ def build_summary_prompt(
 		"about the most clearly relevant recent environmental incident, naming the "
 		"area or publisher where useful. State that it is local reporting and do not "
 		"claim exposure at the property. Do not silently omit relevant supplied news. "
+		"If no relevant local news is supplied, return an empty observations array. "
 		"Keep tile titles short and factual. Keep every entry factual and concise; the "
 		f"combined output must be under {MAX_REPORT_WORDS} words.\n\n"
 		f"Priority findings JSON (use this first):\n{priority_json}\n\n"
@@ -703,7 +725,7 @@ def build_environmental_report(
 		)
 		summary_status = "generated"
 	except GeminiProviderError as error:
-		summary, summary_data = _fallback_summary(evidence)
+		summary, summary_data = _fallback_summary(evidence, local_context)
 		if error.code == "summary_rejected":
 			logger.warning("Gemini summary repaired from structured evidence")
 			summary_issue = None

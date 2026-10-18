@@ -1,11 +1,45 @@
 {% extends "base.html" %}
 
-{% block title %}Doctor login · AreaMD{% endblock %}
+{% block title %}Sign in · AreaMD{% endblock %}
 
 {% block content %}
 <section class="page-heading">
-	<h1>Doctor login</h1>
-	<p class="muted">Doctor sign-in is not available yet.</p>
+    <p class="eyebrow">AreaMD portal</p>
+    <h1>Sign in</h1>
+    <p>Select your account type to continue.</p>
 </section>
-<a class="back-link" href="{{ url_for('patients') }}">Back to patients</a>
+
+<form method="post" action="{{ url_for('login') }}" class="edit-form login-form">
+    <label for="role">Account type</label>
+    <select id="role" name="role" required>
+        <option value="doctor" {% if request.form.get('role', 'doctor') == 'doctor' %}selected{% endif %}>Doctor</option>
+        <option value="admin" {% if request.form.get('role') == 'admin' %}selected{% endif %}>Admin</option>
+    </select>
+
+    <label for="username">Name</label>
+    <input
+        id="username"
+        name="username"
+        type="text"
+        autocomplete="username"
+        value="{{ request.form.get('username', request.form.get('doctor_name', '')) }}"
+        required
+        autofocus
+    >
+
+    <label for="password">Password</label>
+    <input
+        id="password"
+        name="password"
+        type="password"
+        autocomplete="current-password"
+        required
+    >
+
+    {% if error %}
+    <p class="form-error" role="alert">{{ error }}</p>
+    {% endif %}
+
+    <button class="primary-button" type="submit">Sign in</button>
+</form>
 {% endblock %}

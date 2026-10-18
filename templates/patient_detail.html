@@ -106,6 +106,107 @@
 			<h3>{{ item.address_type }}</h3>
 			<code>{{ item.profile.postcode }}</code>
 		</header>
+
+		{% if item.profile.drinking_water %}
+		{% set dw = item.profile.drinking_water %}
+		<section class="drinking-water-summary" aria-label="Tap water quality by supply zone">
+			<p><strong>Tap-water supply zone:</strong> {{ dw.zone_name }}</p>
+			<p><strong>Hardness:</strong> {{ dw.hardness_calcium_carbonate_mg_l }} mg/L as calcium carbonate ({{ dw.hardness_rating | title }})
+				<span class="muted">&middot; <strong>Fluoride:</strong> {{ dw.fluoride_mg_l }} mg/L
+				&middot; <strong>Calcium:</strong> {{ dw.calcium_mg_l }} mg/L</span>
+			</p>
+
+			{% if dw.regulated_parameters %}
+				{% set ns = namespace(over=0) %}
+				{% for name, parameter in dw.regulated_parameters.items() %}
+					{% if (parameter.samples_above_limit or 0) > 0 %}
+						{% set ns.over = ns.over + 1 %}
+					{% endif %}
+				{% endfor %}
+				<p>
+					<strong>Annual zone samples:</strong>
+					{% if ns.over == 0 %}
+						no sampled parameter had results over its regulatory limit.
+					{% else %}
+						{{ ns.over }} of {{ dw.regulated_parameters | length }} parameters had samples over the limit.
+					{% endif %}
+				</p>
+				<details{% if ns.over > 0 %} open{% endif %}>
+					<summary>Show all {{ dw.regulated_parameters | length }} parameters</summary>
+					<div class="water-quality-table-wrap">
+						<table class="water-quality-table">
+							<thead>
+								<tr>
+									<th scope="col">Parameter</th>
+									<th scope="col">Mean</th>
+									<th scope="col">Maximum</th>
+									<th scope="col">Limit</th>
+									<th scope="col">Over limit</th>
+								</tr>
+							</thead>
+							<tbody>
+								{% for name, parameter in dw.regulated_parameters.items() %}
+								<tr>
+									<th scope="row">{{ name }}</th>
+									<td>{{ parameter.mean }} {{ parameter.unit }}</td>
+									<td>{{ parameter.maximum }} {{ parameter.unit }}</td>
+									<td>{{ parameter.limit }} {{ parameter.unit }}</td>
+									<td>{{ parameter.samples_above_limit }} of {{ parameter.sample_count }}</td>
+								</tr>
+								{% endfor %}
+							</tbody>
+						</table>
+					</div>
+				</details>
+			{% else %}
+				<p class="muted">Detailed sample results are not available for this zone.</p>
+			{% endif %}
+
+			<p class="muted">{{ dw.summary }} Zone data for {{ dw.data_year }}; not a sample from this specific tap and not an overall safety score. <a href="{{ dw.source_url }}">Thames Water source</a>{% if dw.report_url %} &middot; <a href="{{ dw.report_url }}">Full zone report</a>{% endif %}.</p>
+		</section>
+		{% else %}
+		<section class="drinking-water-summary" aria-label="Tap water quality by supply zone">
+			<p><strong>Tap-water supply zone:</strong> <span class="muted">no data for this postcode</span></p>
+			<p class="muted">Tap water data currently covers only some Thames Water zones in London, and only for postcodes in the saved snapshot. This does not mean the water is a concern, only that it hasn't been looked up.</p>
+		</section>
+		{% endif %}
+
+		<section class="surface-water-summary" aria-label="Nearby surface water">
+			<h4>Nearby surface water <span class="muted">(rivers and lakes, not tap water)</span></h4>
+			{% if item.profile.surface_water is defined and item.profile.surface_water.available %}
+				{% set sw = item.profile.surface_water %}
+				<p class="muted">Latest reading per parameter from {{ sw.sampling_point_count }} Environment Agency sampling point{{ '' if sw.sampling_point_count == 1 else 's' }} within {{ sw.radius_km }} km, last 12 months.</p>
+				<details>
+					<summary>Show {{ sw.observations | length }} readings</summary>
+					<div class="water-quality-table-wrap">
+						<table class="water-quality-table">
+							<thead>
+								<tr>
+									<th scope="col">Parameter</th>
+									<th scope="col">Value</th>
+									<th scope="col">Sampled</th>
+									<th scope="col">Location</th>
+								</tr>
+							</thead>
+							<tbody>
+								{% for obs in sw.observations %}
+								<tr>
+									<th scope="row">{{ obs.parameter }}</th>
+									<td>{{ obs.value }} {{ obs.unit or "" }}</td>
+									<td>{{ obs.sampled_at[:10] }}</td>
+									<td>{{ obs.sampling_point or "Unnamed" }}</td>
+								</tr>
+								{% endfor %}
+							</tbody>
+						</table>
+					</div>
+				</details>
+				<p class="muted">Describes the local environment, not the water supplied to this address. Covers England only.</p>
+			{% else %}
+				<p class="muted">No surface water readings available for this location.</p>
+			{% endif %}
+		</section>
+
 		{% if item.profile.errors %}
 			<p class="status status-warning">Some source data could not be retrieved.</p>
 		{% endif %}
@@ -115,11 +216,7 @@
 					  &middot; {{ item.profile.air_quality.distance_km }} km
 				{% endif %}
 			</p>
-			{% if item.profile.air_quality.measurements %}
-			<p class="muted">Numeric pollutant readings available in the generated report's source details.</p>
-			{% else %}
-			<p class="muted">No numeric reading was returned for this monitoring window.</p>
-			{% endif %}
+			<p class="muted">Site location only; pollutant readings are not included.</p>
 		{% else %}
 			<p><strong>Nearest LAQN site:</strong> unavailable</p>
 		{% endif %}

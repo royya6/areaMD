@@ -87,8 +87,11 @@ def _provider_error_code(error: Exception) -> str:
 	return "provider_request_failed"
 
 
-def _fallback_summary(evidence: dict[str, object]) -> tuple[str, dict[str, object]]:
-	observations = _qualitative_observations(evidence)
+def _fallback_summary(
+	evidence: dict[str, object],
+	local_context: list[dict[str, object]] | None = None,
+) -> tuple[str, dict[str, object]]:
+	observations = _news_observations(local_context or [])
 	overview = _findings_overview(evidence)
 	return overview, {
 		"overview": overview,
@@ -99,6 +102,23 @@ def _fallback_summary(evidence: dict[str, object]) -> tuple[str, dict[str, objec
 		],
 		"indicator_findings": _fallback_indicator_findings(evidence),
 	}
+
+
+def _news_observations(local_context: list[dict[str, object]]) -> list[str]:
+	observations = []
+	for context in local_context:
+		if not isinstance(context, dict):
+			continue
+		for article in context.get("selected_articles", []):
+			if not isinstance(article, dict):
+				continue
+			title = article.get("title")
+			if not isinstance(title, str) or not title.strip():
+				continue
+			publisher = article.get("publisher")
+			source = f" ({publisher})" if isinstance(publisher, str) and publisher else ""
+			observations.append(f"Local reporting: {title.strip()}{source}.")
+	return list(dict.fromkeys(observations))[:MAX_OBSERVATIONS]
 
 
 def _fallback_indicator_findings(
@@ -277,7 +297,8 @@ def build_summary_prompt(
 		"recency, and whether an item is a direct measurement or contextual "
 		"proxy. A planning lookup with no match does not prove absence; no web "
 		"result does not prove no event occurred. Use the supplied indicator statuses "
-		"to state the actual findings first. Do not merely list "
+		"to write one brief overview of the most important concerns across locations. "
+		"Do not repeat tile statuses as separate observations or merely list "
 		"which datasets were queried. Do not include raw numeric measurements in "
 		"the overview, observations, or tile findings; keep those in the source details. "
 		"Never begin with 'Environmental evidence', 'Environmental data brief', "
@@ -291,6 +312,11 @@ def build_summary_prompt(
 		"string array 'limitations', and array 'indicator_findings'. Each indicator finding "
 		"must contain 'address_type', 'category', 'title', and 'detail', and should cover "
 		"the supplied Air quality, Water observations, and Flood context indicators. "
+		"If selected local news articles are supplied, include one concise observation "
+		"about the most clearly relevant recent environmental incident, naming the "
+		"area or publisher where useful. State that it is local reporting and do not "
+		"claim exposure at the property. Do not silently omit relevant supplied news. "
+		"If no relevant local news is supplied, return an empty observations array. "
 		"Keep tile titles short and factual. Keep every entry factual and concise; the "
 		f"combined output must be under {MAX_REPORT_WORDS} words.\n\n"
 		f"Priority findings JSON (use this first):\n{priority_json}\n\n"
@@ -327,8 +353,9 @@ def build_article_selection_prompt(
 	]
 	return (
 		"Select only candidate IDs for articles that report an actual environmental "
-		"incident (fire, smoke, pollution, contamination, water-supply incident, or "
-		"flooding) and whose title or description explicitly locates the incident in "
+		"incident (dust, debris, construction, fire, smoke, pollution, contamination, "
+		"water-supply incident, industrial activity, or flooding) and whose title or "
+		"description explicitly locates the incident in "
 		"the named local-authority area. Exclude articles that merely mention the "
 		"area, use it as a political term, describe routine planning or policy, or "
 		"refer to another place with a similar name. Do not infer an event location "
@@ -425,11 +452,26 @@ def search_local_context(
 		)
 	except GeminiProviderError as error:
 		logger.warning("Gemini article selection unavailable (%s)", error.code)
+		if news.get("source_type") == "rss":
+			return {
+				**news,
+				"selected_articles": news["articles"][:3],
+				"selection_status": "rss_fallback",
+				"selection_error_code": error.code,
+			}
 		return {
 			**news,
 			"selected_articles": [],
 			"selection_status": "unavailable",
 			"error_code": error.code,
+		}
+	if not selected_articles and news.get("source_type") == "rss":
+		selected_articles = news["articles"][:3]
+		return {
+			**news,
+			"selected_articles": selected_articles,
+			"selection_status": "rss_fallback",
+			"selection_error_code": "no_gemini_match",
 		}
 	return {
 		**news,
@@ -683,7 +725,7 @@ def build_environmental_report(
 		)
 		summary_status = "generated"
 	except GeminiProviderError as error:
-		summary, summary_data = _fallback_summary(evidence)
+		summary, summary_data = _fallback_summary(evidence, local_context)
 		if error.code == "summary_rejected":
 			logger.warning("Gemini summary repaired from structured evidence")
 			summary_issue = None

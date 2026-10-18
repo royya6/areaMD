@@ -553,6 +553,48 @@ h3 {
   color: var(--muted);
 }
 
+.report-progress {
+  max-width: 620px;
+  margin: 22px 0 30px;
+  padding: 16px 18px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+}
+
+.progress-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 10px;
+  color: var(--ink);
+}
+
+.progress-heading span {
+  color: var(--muted);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.progress-track {
+  height: 10px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--line);
+}
+
+.progress-bar {
+  width: 0;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--teal);
+  transition: width 500ms ease;
+}
+
+.report-progress p {
+  margin: 10px 0 0;
+}
+
 .address-section,
 .report-section {
   margin-top: 34px;

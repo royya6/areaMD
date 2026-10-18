@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 from flask import Flask, render_template, request, session, abort, redirect, url_for
 from flask_migrate import Migrate
 from config import Config
@@ -6,6 +7,16 @@ from werkzeug.security import check_password_hash
 from copy import deepcopy
 from datetime import date
 from sqlalchemy.exc import IntegrityError
+=======
+from copy import deepcopy
+from datetime import date, datetime, timezone
+
+from flask import Flask, abort, redirect, render_template, request, url_for
+
+from config import Config
+from db import db
+from services.gemini import build_environmental_report
+>>>>>>> 80879e743150af7eda17b3138d54a6666bdc1bf0
 from services.risk_profile import RiskProfileError, get_full_risk_profile
 
 
@@ -21,6 +32,16 @@ MOCK_PATIENTS = [
             {"id": 3, "type": "Previous home", "postcode": "M1 1AE"},
         ],
     },
+    {
+        "id": 2,
+        "name": "Demo Patient · Flood Warning Scenario",
+        "dob": "1975-06-20",
+        "conditions": ["Demo warning scenario"],
+        "addresses": [
+            {"id": 4, "type": "Home", "postcode": "E14 5AB"},
+            {"id": 5, "type": "Work", "postcode": "E16 1AA"},
+        ],
+    },
 ]
 
 MOCK_REPORTS = [
@@ -29,7 +50,9 @@ MOCK_REPORTS = [
         "patient_id": 1,
         "appointment_date": "2026-09-17",
         "appointment_label": "Example appointment",
-        "summary": "Sample report only. No clinical conclusions or real patient data.",
+        "summary_text": "Sample report only. No clinical conclusions or real patient data.",
+        "summary_status": "example",
+        "local_context": [],
     },
 ]
 
@@ -323,6 +346,8 @@ def create_app(test_config=None):
 
         profiles = []
         for address in patient["addresses"]:
+            if address["type"] not in {"Home", "Work"}:
+                continue
             try:
                 profile = get_full_risk_profile(address["postcode"])
             except RiskProfileError:
@@ -332,16 +357,29 @@ def create_app(test_config=None):
                 }
             profiles.append({"address_type": address["type"], "profile": profile})
 
-        return render_template(
-            "patient_detail.html",
-            patient=patient,
-            profiles=profiles,
-            reports=[
-                report
-                for report in app.config["MOCK_REPORTS"]
-                if report["patient_id"] == patient_id
-            ],
-            form_error=None,
+        environmental_report = build_environmental_report(
+            profiles,
+            client=app.config.get("GEMINI_CLIENT"),
+        )
+        reports = app.config["MOCK_REPORTS"]
+        report_id = max((report["id"] for report in reports), default=0) + 1
+        generated_at = datetime.now(timezone.utc)
+        reports.append(
+            {
+                "id": report_id,
+                "patient_id": patient_id,
+                "appointment_date": generated_at.date().isoformat(),
+                "generated_at": generated_at.isoformat(),
+                "appointment_label": "Environmental report",
+                **environmental_report,
+            }
+        )
+        return redirect(
+            url_for(
+                "previous_report",
+                patient_id=patient_id,
+                report_id=report_id,
+            )
         )
 
     return app

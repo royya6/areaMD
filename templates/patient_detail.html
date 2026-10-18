@@ -180,7 +180,11 @@
 					  &middot; {{ item.profile.air_quality.distance_km }} km
 				{% endif %}
 			</p>
-			<p class="muted">Site location only; pollutant readings are not included.</p>
+			{% if item.profile.air_quality.measurements %}
+			<p class="muted">Numeric pollutant readings available in the generated report's source details.</p>
+			{% else %}
+			<p class="muted">No numeric reading was returned for this monitoring window.</p>
+			{% endif %}
 		{% else %}
 			<p><strong>Nearest LAQN site:</strong> unavailable</p>
 		{% endif %}

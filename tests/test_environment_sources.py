@@ -22,19 +22,24 @@ class PlanningFlagsTests(unittest.TestCase):
     def test_batches_datasets_and_returns_triaged_flags(self, get):
         response = Mock()
         response.json.return_value = {
-            "entities": [{"dataset": "green-belt"}]
+            "entities": [{"dataset": "green-belt"}, {"dataset": "brownfield-land"}]
         }
         get.return_value = response
 
         flags = get_planning_flags(51.5, -0.12)
 
         self.assertTrue(flags["green-belt"])
+        self.assertTrue(flags["brownfield-land"])
         self.assertFalse(flags["conservation-area"])
         self.assertEqual(set(flags), set(PLANNING_DATASETS))
         get.assert_called_once()
         args, kwargs = get.call_args
         self.assertEqual(args[0], PLANNING_API_URL)
         self.assertEqual(kwargs["params"].count(("dataset", "green-belt")), 1)
+        self.assertEqual(kwargs["params"].count(("dataset", "brownfield-land")), 1)
+        self.assertEqual(
+            kwargs["params"].count(("dataset", "planning-application")), 1
+        )
         self.assertEqual(kwargs["timeout"], 6)
 
     def test_rejects_invalid_coordinates_without_request(self):

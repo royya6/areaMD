@@ -8,9 +8,117 @@
 	<h1>{{ report.appointment_label }}</h1>
 	<p class="muted">{{ report.appointment_date }} · {{ patient.name }}</p>
 </section>
+{% if report.environmental_evidence is defined and report.environmental_evidence.indicators %}
+<section class="indicator-panel" aria-labelledby="indicator-heading">
+	<div class="section-heading">
+		<h2 id="indicator-heading">Environmental screening</h2>
+		<p class="report-note">Observed area context for clinical review; not a diagnosis.</p>
+	</div>
+	{% for address in report.environmental_evidence.indicators %}
+	<h3 class="indicator-address">{{ address.address_type }}</h3>
+	<div class="indicator-grid">
+		{% for item in address["items"] %}
+		<article class="indicator-tile indicator-{{ item.status }}">
+			<p class="indicator-category">{{ item.category }}</p>
+			<p class="indicator-title">{{ item.title }}</p>
+			<p>{{ item.detail }}</p>
+			<span class="indicator-source">{{ item.source }}</span>
+		</article>
+		{% endfor %}
+	</div>
+	{% endfor %}
+</section>
+{% endif %}
 <section class="report-summary" aria-labelledby="summary-heading">
 	<h2 id="summary-heading">Summary</h2>
-	<p>{{ report.summary }}</p>
+	{% if report.summary_data is defined and report.summary_data.overview %}
+	<p class="report-text">{{ report.summary_data.overview }}</p>
+	{% if report.summary_data.observations %}
+	<ul class="summary-observations">
+		{% for observation in report.summary_data.observations %}
+		<li>{{ observation }}</li>
+		{% endfor %}
+	</ul>
+	{% endif %}
+	{% if report.summary_data.limitations %}
+	<p class="muted"><strong>Data limitations:</strong> {{ report.summary_data.limitations | join("; ") }}</p>
+	{% endif %}
+	{% else %}
+	<p class="report-text">{{ report.summary_text or report.summary }}</p>
+	{% endif %}
+	{% if report.summary_status == "fallback" %}
+	<p class="status-warning" role="status">{{ report.summary_issue_message or "Automated summary unavailable; review the source data directly." }}</p>
+	{% endif %}
 	<p class="demo-note">Temporary example report; this is not a saved clinical record.</p>
 </section>
+{% if report.local_context %}
+<details class="report-sources">
+	<summary>Local news sources</summary>
+	{% for context in report.local_context %}
+		<p class="muted">{{ context.local_authority }} · last {{ context.lookback or "30 days" }}</p>
+		{% if context.status == "unavailable" %}
+		<p class="muted">Local search unavailable; the structured data below is still available.</p>
+		{% endif %}
+		{% if context.selection_status == "not_run" %}
+		<p class="muted">Articles were retrieved but not relevance-screened because Gemini is unavailable.</p>
+		<ul class="unscreened-articles">
+		{% for article in context.articles[:3] %}
+			<li>
+				<a href="{{ article.url }}" target="_blank" rel="noopener noreferrer">{{ article.title }}</a>
+				<span class="muted">{{ article.publisher }} · {{ article.published_at or "date unavailable" }} ({{ article.date_source or "date source unknown" }})</span>
+			</li>
+		{% endfor %}
+		</ul>
+		{% endif %}
+		<ul>
+		{% for article in context.selected_articles %}
+			<li>
+				<a href="{{ article.url }}" target="_blank" rel="noopener noreferrer">{{ article.title }}</a>
+				<span class="muted">{{ article.publisher }} · {{ article.published_at or "date unavailable" }} ({{ article.date_source or "date source unknown" }})</span>
+			</li>
+		{% else %}
+			<li class="muted">No screened local incident articles available.</li>
+		{% endfor %}
+		</ul>
+	{% endfor %}
+</details>
+{% endif %}
+{% if report.environmental_evidence is defined and report.environmental_evidence.addresses %}
+<details class="report-sources"{% if report.summary_status == "fallback" %} open{% endif %}>
+	<summary>Data quality and source details</summary>
+	{% for address in report.environmental_evidence.addresses %}
+	<section class="evidence-address">
+		<h3>{{ address.address_type }}{% if address.local_authority %} · {{ address.local_authority }}{% endif %}</h3>
+		{% for item in address.evidence %}
+		<article class="evidence-item">
+			<p><strong>{{ item.topic | replace("_", " ") | title }}</strong> · {{ item.state | replace("_", " ") }}</p>
+			<p class="muted">Source: {{ item.source }}</p>
+			{% if item.facts %}
+			<ul class="evidence-facts">
+				{% for key, value in item.facts.items() %}
+				<li>{{ key | replace("_", " ") | title }}: {{ value }}</li>
+				{% endfor %}
+			</ul>
+			{% endif %}
+			{% if item.reliability_context %}
+			<dl class="quality-factors">
+				<dt>Freshness</dt><dd>{{ item.reliability_context.freshness }}</dd>
+				<dt>Geographic scope</dt><dd>{{ item.reliability_context.geographic_scope }}</dd>
+				<dt>Directness</dt><dd>{{ item.reliability_context.directness }}</dd>
+				<dt>Coverage</dt><dd>{{ item.reliability_context.coverage }}</dd>
+			</dl>
+			{% if item.reliability_context.limitations %}
+			<ul class="evidence-limitations">
+				{% for limitation in item.reliability_context.limitations %}
+				<li>{{ limitation }}</li>
+				{% endfor %}
+			</ul>
+			{% endif %}
+			{% endif %}
+		</article>
+		{% endfor %}
+	</section>
+	{% endfor %}
+</details>
+{% endif %}
 {% endblock %}

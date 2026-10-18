@@ -46,7 +46,7 @@ class BuildEnvironmentalEvidenceTests(unittest.TestCase):
         self.assertEqual(evidence["addresses"][0]["local_authority"], "Westminster")
         self.assertEqual(evidence["addresses"][0]["search_region"], "London")
         self.assertEqual(
-            evidence["search_terms"], ["fire", "pollution", "smoke", "water"]
+            evidence["search_terms"], ["dust", "fire", "pollution", "water"]
         )
         observations = evidence["addresses"][0]["evidence"]
         states = {

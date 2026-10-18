@@ -259,7 +259,7 @@ class GeminiCallsTests(unittest.TestCase):
         fetch_articles.assert_called_once_with(
             "Westminster",
             search_region="London",
-            search_terms=["fire", "pollution", "smoke", "water"],
+            search_terms=["dust", "fire", "pollution", "water"],
             session=None,
         )
         self.assertEqual(report["summary_status"], "generated")
